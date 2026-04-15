@@ -1,0 +1,6 @@
+{
+  "name": "dashboard-financeiro",
+  "version": "1.0.0",
+  "description": "Dashboard para acompanhamento de contratos cancelados com comodato ativo",
+  "repository": "git@github.com:ahlrodrigues/dashboard_financeir.git"
+}

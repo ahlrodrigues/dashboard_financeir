@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Contratos Cancelados com Comodato Ativo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .card { box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); }
+        .equipment-tag {
+            background: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin: 2px;
+            display: inline-block;
+        }
+        .loading-spinner { display: none; }
+        .loading-spinner.active { display: inline-block; }
+        .last-update { font-size: 0.85rem; color: #6c757d; }
+        .stat-card {
+            border-left: 4px solid #0d6efd;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card.canceled { border-left-color: #dc3545; }
+        .stat-card.equipment { border-left-color: #198754; }
+        .refresh-btn { min-width: 120px; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h2 class="mb-1">Dashboard Financeiro</h2>
+                <p class="text-muted mb-0">Contratos Cancelados com Comodato Ativo</p>
+            </div>
+            <div class="col-auto d-flex align-items-center">
+                <span class="last-update me-2" id="lastUpdate"></span>
+                <span class="badge bg-secondary me-3" id="progressBadge" style="display: none;">0/0</span>
+                <button class="btn btn-primary refresh-btn" onclick="loadData(true)" id="refreshBtn">
+                    <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"></span>
+                    <span class="btn-text">Atualizar</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="row mb-4" id="statsRow">
+            <div class="col-md-4">
+                <div class="card stat-card mb-3">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Total Comodatos Ativos</h6>
+                        <h3 id="totalComodatos">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card canceled mb-3">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Contratos Cancelados</h6>
+                        <h3 id="totalCancelados">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card equipment mb-3">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Equipamentos em Risco</h6>
+                        <h3 id="totalEquipamentos">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0">Lista de Contratos</h5>
+                    </div>
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="filterMes" onchange="loadData()" style="width: auto;">
+                            <option value="01">Janeiro 2026</option>
+                            <option value="02">Fevereiro 2026</option>
+                            <option value="03">Março 2026</option>
+                            <option value="04" selected>Abril 2026</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="tabelaContratos" class="table table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Contrato</th>
+                                <th>Cliente</th>
+                                <th>CPF/CNPJ</th>
+                                <th>Data Cancelamento</th>
+                                <th>Equipamentos</th>
+                                <th>ID Comodato</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaBody">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                    Carregando dados...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        const AUTH_BASIC = 'Basic ' + btoa('robo:Ox(?YMae?0V3V#}HIGcF');
+        const CACHE_KEY = 'dashboard_comodatos_cache';
+        const CACHE_CONTRACTS_KEY = 'dashboard_contratos_cache';
+
+        let table;
+
+        function setLoading(loading) {
+            const btn = document.getElementById('refreshBtn');
+            const spinner = btn.querySelector('.loading-spinner');
+            const text = btn.querySelector('.btn-text');
+            if (loading) {
+                spinner.classList.add('active');
+                text.textContent = 'Carregando...';
+                btn.disabled = true;
+            } else {
+                spinner.classList.remove('active');
+                text.textContent = 'Atualizar';
+                btn.disabled = false;
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        function formatCpfCnpj(value) {
+            if (!value) return '-';
+            value = value.replace(/\D/g, '');
+            if (value.length === 11) {
+                return value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+            } else if (value.length === 14) {
+                return value.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+            }
+            return value;
+        }
+
+        function getLastDayOfMonth(mes) {
+            const year = 2026;
+            const lastDay = new Date(year, mes, 0).getDate();
+            return lastDay;
+        }
+
+        function loadCache() {
+            try {
+                const cached = localStorage.getItem(CACHE_KEY);
+                const contractsCached = localStorage.getItem(CACHE_CONTRACTS_KEY);
+                if (cached && contractsCached) {
+                    return {
+                        data: JSON.parse(cached),
+                        contracts: JSON.parse(contractsCached),
+                        timestamp: new Date()
+                    };
+                }
+            } catch (e) {
+                console.error('Erro ao carregar cache:', e);
+            }
+            return null;
+        }
+
+        function saveCache(data, contracts) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+                localStorage.setItem(CACHE_CONTRACTS_KEY, JSON.stringify(contracts));
+            } catch (e) {
+                console.error('Erro ao salvar cache:', e);
+            }
+        }
+
+        async function getComodatos(mes) {
+            const ano = 2026;
+            const lastDay = getLastDayOfMonth(mes);
+            const dataInicio = `${ano}-${mes}-01`;
+            const dataFim = `${ano}-${mes}-${lastDay}`;
+            
+            const url = new URL('https://sgp.net4you.com.br/api/estoque/comodato/list/');
+            url.searchParams.set('data_cadastro_ini', dataInicio);
+            url.searchParams.set('data_cadastro_fim', dataFim);
+            
+            const resp = await fetch(url.toString(), {
+                headers: { 'Authorization': AUTH_BASIC }
+            });
+            
+            const text = await resp.text();
+            if (!resp.ok) throw new Error(text);
+            
+            const data = JSON.parse(text);
+            if (!Array.isArray(data)) throw new Error('Resposta inválida');
+            return data;
+        }
+
+        async function getContrato(contratoId) {
+            const formData = new URLSearchParams({
+                token: '37ab7243-9e9c-45bc-a393-e2ccbf76eff2',
+                app: 'financeiro',
+                contrato: contratoId
+            });
+
+            const resp = await fetch('https://sgp.net4you.com.br/api/ura/listacontrato/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString()
+            });
+
+            const text = await resp.text();
+            if (!text) return [];
+            try {
+                return JSON.parse(text);
+            } catch {
+                return [];
+            }
+        }
+
+        async function getComodatoItens(comodatoId) {
+            const url = new URL('https://sgp.net4you.com.br/api/estoque/comodatoitens/list/');
+            url.searchParams.set('comodato_id', comodatoId);
+            
+            const resp = await fetch(url.toString(), {
+                headers: { 'Authorization': AUTH_BASIC }
+            });
+
+            const text = await resp.text();
+            if (!text) return [];
+            try {
+                return JSON.parse(text);
+            } catch {
+                return [];
+            }
+        }
+
+        async function loadData(isUpdate = false) {
+            setLoading(true);
+            const statusEl = document.getElementById('lastUpdate');
+            const progressBadge = document.getElementById('progressBadge');
+            
+            const cache = loadCache();
+            const mes = document.getElementById('filterMes').value;
+            
+            try {
+                statusEl.textContent = 'Carregando...';
+                const comodatos = await getComodatos(mes);
+
+                const activeComodatos = comodatos.filter(c => c.status === 2 && c.contrato_id);
+                const uniqueContracts = [...new Set(activeComodatos.map(c => c.contrato_id))];
+
+                document.getElementById('totalComodatos').textContent = activeComodatos.length;
+
+                let cachedContracts = cache?.contracts || {};
+                let needsUpdate = false;
+
+                if (isUpdate && cache?.data) {
+                    const existingIds = new Set(cache.data.map(d => d.contrato_id));
+                    const newIds = uniqueContracts.filter(id => !existingIds.has(id));
+                    const removedIds = existingIds.difference(new Set(uniqueContracts));
+                    
+                    statusEl.textContent = `Atualizando...`;
+                    
+                    let checked = 0;
+                    const total = newIds.length;
+                    
+                    for (const id of [...newIds]) {
+                        checked++;
+                        progressBadge.textContent = `${checked}/${total}`;
+                        progressBadge.style.display = 'inline';
+                        
+                        if (!(id in cachedContracts)) {
+                            const data = await getContrato(id);
+                            if (data && data.length > 0 && data[0].status === 'Cancelado') {
+                                cachedContracts[id] = data[0];
+                                needsUpdate = true;
+                            }
+                        }
+                    }
+                    
+                    for (const id of [...removedIds]) {
+                        delete cachedContracts[id];
+                        needsUpdate = true;
+                    }
+                } else {
+                    progressBadge.style.display = 'inline';
+                    let checked = 0;
+                    const total = uniqueContracts.length;
+                    
+                    for (const contratoId of uniqueContracts) {
+                        checked++;
+                        progressBadge.textContent = `${checked}/${total}`;
+                        
+                        if (!(contratoId in cachedContracts)) {
+                            try {
+                                const contratoData = await getContrato(contratoId);
+                                if (contratoData && contratoData.length > 0) {
+                                    cachedContracts[contratoId] = contratoData[0];
+                                }
+                            } catch (e) {
+                                console.error(`Erro contrato ${contratoId}:`, e);
+                            }
+                        }
+                    }
+                }
+
+                const results = [];
+                let totalEquipamentos = 0;
+
+                for (const [contratoId, contrato] of Object.entries(cachedContracts)) {
+                    if (contrato.status === 'Cancelado' && uniqueContracts.includes(parseInt(contratoId))) {
+                        const comodato = activeComodatos.find(c => c.contrato_id === parseInt(contratoId));
+                        let equipamentos = [];
+                        
+                        if (comodato) {
+                            const itens = await getComodatoItens(comodato.id);
+                            equipamentos = itens.map(i => i.produto__descricao || 'N/A');
+                            totalEquipamentos += itens.reduce((sum, i) => sum + (parseFloat(i.quantidade) || 0), 0);
+                        }
+
+                        results.push({
+                            contrato_id: parseInt(contratoId),
+                            cliente_id: contrato.id_cliente,
+                            nome: contrato.nome,
+                            cpfcnpj: contrato.cpfcnpj,
+                            data_status: contrato.data_status,
+                            equipamentos: equipamentos,
+                            comodato_id: comodato?.id || '-'
+                        });
+                    }
+                }
+
+                results.sort((a, b) => new Date(b.data_status) - new Date(a.data_status));
+
+                document.getElementById('totalCancelados').textContent = results.length;
+                document.getElementById('totalEquipamentos').textContent = Math.round(totalEquipamentos);
+                statusEl.textContent = `Atualizado:`;
+                progressBadge.style.display = 'none';
+
+                saveCache(results, cachedContracts);
+                updateTable(results);
+
+            } catch (error) {
+                console.error('Erro:', error);
+                progressBadge.style.display = 'none';
+                if (cache?.data) {
+                    statusEl.textContent = 'Erro - cache';
+                    updateTable(cache.data);
+                } else {
+                    alert('Erro ao carregar dados: ' + error.message);
+                    statusEl.textContent = 'Erro';
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function updateTable(data) {
+            const tbody = document.getElementById('tabelaBody');
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Nenhum contrato cancelado com comodato ativo encontrado.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td><strong>${item.contrato_id}</strong></td>
+                    <td>${item.nome || '-'}</td>
+                    <td>${formatCpfCnpj(item.cpfcnpj)}</td>
+                    <td>${formatDate(item.data_status)}</td>
+                    <td>${item.equipamentos.map(eq => `<span class="equipment-tag">${eq}</span>`).join('')}</td>
+                    <td><code>${item.comodato_id}</code></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="verDetalhes(${item.cliente_id})">Ver Detalhes</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            if (table) table.destroy();
+            table = new DataTable('#tabelaContratos', {
+                language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json' },
+                pageLength: 25,
+                order: [[3, 'desc']]
+            });
+        }
+
+        function verDetalhes(clienteId) {
+            window.open(`https://sgp.net4you.com.br/admin/cliente/${clienteId}/edit/`, '_blank');
+        }
+
+        function inicializar() {
+            const cache = loadCache();
+            if (cache?.data) {
+                document.getElementById('totalCancelados').textContent = cache.data.length;
+                document.getElementById('lastUpdate').textContent = `Cache: ${cache.timestamp.toLocaleString('pt-BR')}`;
+                updateTable(cache.data);
+                loadData(true);
+            } else {
+                loadData(false);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', inicializar);
+        setInterval(() => loadData(true), 5 * 60 * 1000);
+    </script>
+</body>
+</html>

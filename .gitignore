@@ -1,0 +1,55 @@
+# Dados sensíveis
+config.json
+*.env
+.env
+.env.*
+credentials.json
+secrets.json
+keys.json
+*.key
+*.pem
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+
+# Servidor
+*.log
+logs/
+/var/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Cache
+*.cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Backup
+*.bak
+*.backup
+*.old
