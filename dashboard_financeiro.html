@@ -302,7 +302,7 @@
             const progressBadge = document.getElementById('progressBadge');
             
             const mes = document.getElementById('filterMes').value;
-            const cache = loadCache(mes);
+            const cache = isUpdate ? loadCache(mes) : null;
             
             try {
                 console.log('Buscando comodatos para mes:', mes);
@@ -612,19 +612,7 @@
 
         function inicializar() {
             console.log('Inicializando...');
-            const mes = document.getElementById('filterMes').value;
-            const cache = loadCache(mes);
-            if (cache?.data && cache?.contracts && cache.data.length > 0) {
-                console.log('Usando cache inicial para mes', mes + ':', cache.data.length, 'registros');
-                const enrichedData = enrichWithOtherContracts(cache.data, cache.contracts);
-                document.getElementById('totalCancelados').textContent = enrichedData.length;
-                document.getElementById('lastUpdate').textContent = `Cache: ${cache.timestamp.toLocaleString('pt-BR')}`;
-                updateTable(enrichedData);
-                loadData(true);
-            } else {
-                console.log('Cache vazio para mes', mes + ', carregando dados...');
-                loadData(false);
-            }
+            loadData(false);
         }
 
         document.addEventListener('DOMContentLoaded', inicializar);
