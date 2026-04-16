@@ -317,9 +317,9 @@
                 console.log('Contratos unicos:', uniqueContracts.length);
 
                 document.getElementById('totalComodatos').textContent = activeComodatos.length;
-                console.log('Contratos no cache:', Object.keys(cachedContracts).length);
-
+                
                 let cachedContracts = cache?.contracts || {};
+                console.log('Contratos no cache:', Object.keys(cachedContracts).length);
                 let needsUpdate = false;
 
                 if (isUpdate && cache?.data) {
