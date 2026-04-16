@@ -28,6 +28,12 @@
         .stat-card.canceled { border-left-color: #dc3545; }
         .stat-card.equipment { border-left-color: #198754; }
         .refresh-btn { min-width: 120px; }
+        .clickable-row { cursor: pointer; }
+        .clickable-row:hover { background-color: rgba(13, 110, 253, 0.1) !important; }
+        .status-devolvido { background-color: #d1e7dd !important; opacity: 0.6; }
+        .status-nao-devolvido { background-color: #f8d7da !important; }
+        .badge-devolvido { background-color: #198754; }
+        .badge-pendente { background-color: #dc3545; }
     </style>
 </head>
 <body>
@@ -114,6 +120,23 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="equipamentosModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Equipamentos do Comodato</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="equipamentosNaoDevolvidos"></div>
+                        <hr>
+                        <h6 class="text-muted">Equipamentos Devolvidos</h6>
+                        <div id="equipamentosDevolvidos"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -350,10 +373,12 @@
                     if (contrato.status === 'Cancelado' && uniqueContracts.includes(contratoIdNum)) {
                         const comodatoDoContratoCancelado = activeComodatos.find(c => c.contrato_id === contratoIdNum);
                         let equipamentos = [];
+                        let comodatoItens = [];
                         let otherActiveContracts = [];
                         
                         if (comodatoDoContratoCancelado) {
                             const itens = await getComodatoItens(comodatoDoContratoCancelado.id);
+                            comodatoItens = itens;
                             equipamentos = itens.map(i => i.produto__descricao || 'N/A');
                             totalEquipamentos += itens.reduce((sum, i) => sum + (parseFloat(i.quantidade) || 0), 0);
                         }
@@ -372,7 +397,8 @@
                             data_status: contrato.data_status,
                             equipamentos: equipamentos,
                             comodato_id: comodatoDoContratoCancelado?.id || '-',
-                            other_active_contracts: otherActiveContracts
+                            other_active_contracts: otherActiveContracts,
+                            comodato_itens: comodatoItens
                         });
                     }
                 }
@@ -410,8 +436,10 @@
                 return;
             }
 
-            tbody.innerHTML = data.map(item => `
-                <tr>
+            window.tableData = data;
+            
+            tbody.innerHTML = data.map((item, index) => `
+                <tr class="clickable-row" onclick="showEquipamentosModal(${index})">
                     <td><strong>${item.contrato_id}</strong></td>
                     <td>${item.nome || '-'}</td>
                     <td>${formatCpfCnpj(item.cpfcnpj)}</td>
@@ -422,7 +450,7 @@
                         ? `<span class="badge bg-warning text-dark">${item.other_active_contracts.join(', ')}</span>` 
                         : '<span class="text-muted">-</span>'}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="verDetalhes(${item.cliente_id})">Ver Detalhes</button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); verDetalhes(${item.cliente_id})">Ver Detalhes</button>
                     </td>
                 </tr>
             `).join('');
@@ -437,6 +465,38 @@
 
         function verDetalhes(clienteId) {
             window.open(`https://sgp.net4you.com.br/admin/cliente/${clienteId}/edit/`, '_blank');
+        }
+
+        function showEquipamentosModal(index) {
+            const item = window.tableData[index];
+            if (!item || !item.comodato_itens) return;
+
+            const naoDevolvidos = item.comodato_itens.filter(i => i.status !== 'Devolvido');
+            const devolvidos = item.comodato_itens.filter(i => i.status === 'Devolvido');
+
+            const naoDevolvidosHtml = naoDevolvidos.length > 0
+                ? naoDevolvidos.map(i => `
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-2 rounded status-nao-devolvido">
+                        <span>${i.produto__descricao || 'N/A'}</span>
+                        <span class="badge badge-pendente">Pendente</span>
+                    </div>
+                `).join('')
+                : '<p class="text-muted">Todos os equipamentos foram devolvidos.</p>';
+
+            const devolvidosHtml = devolvidos.length > 0
+                ? devolvidos.map(i => `
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-2 rounded status-devolvido">
+                        <span>${i.produto__descricao || 'N/A'}</span>
+                        <span class="badge badge-devolvido">Devolvido</span>
+                    </div>
+                `).join('')
+                : '<p class="text-muted">Nenhum equipamento devolvido.</p>';
+
+            document.getElementById('equipamentosNaoDevolvidos').innerHTML = naoDevolvidosHtml;
+            document.getElementById('equipamentosDevolvidos').innerHTML = devolvidosHtml;
+
+            const modal = new bootstrap.Modal(document.getElementById('equipamentosModal'));
+            modal.show();
         }
 
         function enrichWithOtherContracts(data, cachedContracts) {
