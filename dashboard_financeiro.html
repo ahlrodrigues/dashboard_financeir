@@ -365,6 +365,7 @@
                         if (!(contratoId in cachedContracts)) {
                             try {
                                 const contratoData = await getContrato(contratoId);
+                                console.log('Contrato', contratoId, ':', JSON.stringify(contratoData).substring(0, 100));
                                 if (contratoData && contratoData.length > 0) {
                                     cachedContracts[contratoId] = contratoData[0];
                                 }
@@ -377,6 +378,14 @@
 
                 const results = [];
                 let totalEquipamentos = 0;
+
+                const contratosCancelados = Object.entries(cachedContracts).filter(([id, c]) => c.status === 'Cancelado');
+                console.log('Contratos com status Cancelado:', contratosCancelados.length);
+                const statusDist = {};
+                Object.values(cachedContracts).forEach(c => {
+                    statusDist[c.status] = (statusDist[c.status] || 0) + 1;
+                });
+                console.log('Distribuicao de status:', statusDist);
 
                 const allContratosPorCliente = {};
                 for (const [contratoId, contrato] of Object.entries(cachedContracts)) {
