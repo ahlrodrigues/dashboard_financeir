@@ -9,7 +9,7 @@ import os
 SGP_BASE = 'https://sgp.net4you.com.br/api'
 AUTH = ('robo', 'Ox(?YMae?0V3V#}HIGcF')
 
-PORT = 9001
+PORT = 8000
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):

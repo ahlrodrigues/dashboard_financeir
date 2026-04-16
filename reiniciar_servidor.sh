@@ -6,7 +6,7 @@ cd "$BASE_DIR"
 
 PID_FILE="$BASE_DIR/server.pid"
 LOG_FILE="$BASE_DIR/server.log"
-PORT="${DASHBOARD_SERVER_PORT:-9001}"
+PORT="${DASHBOARD_SERVER_PORT:-8000}"
 
 kill_pid() {
     if [[ -f "$PID_FILE" ]]; then
