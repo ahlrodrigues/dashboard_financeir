@@ -31,7 +31,7 @@ if [[ -n "$PIDS" ]]; then
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Iniciando servidor na porta $PORT" >> "$LOG_FILE"
-nohup python3 server.py --port "$PORT" >> "$LOG_FILE" 2>&1 &
+nohup python3 server.py >> "$LOG_FILE" 2>&1 &
 NEW_PID=$!
 echo $NEW_PID > "$PID_FILE"
 
