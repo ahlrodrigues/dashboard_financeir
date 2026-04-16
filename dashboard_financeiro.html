@@ -107,8 +107,8 @@
                                 <th>Data Cancelamento</th>
                                 <th>Equipamentos</th>
                                 <th>ID Comodato</th>
-                                <th>Ação</th>
-                                <th>Ações</th>
+                                <th>Status</th>
+                                <th>Detalhes</th>
                             </tr>
                         </thead>
                         <tbody id="tabelaBody">
@@ -197,11 +197,16 @@
                 const cached = localStorage.getItem(CACHE_KEY);
                 const contractsCached = localStorage.getItem(CACHE_CONTRACTS_KEY);
                 if (cached && contractsCached) {
+                    const data = JSON.parse(cached);
+                    const contracts = JSON.parse(contractsCached);
+                    console.log('Cache carregado:', data.length, 'registros');
                     return {
-                        data: JSON.parse(cached),
-                        contracts: JSON.parse(contractsCached),
+                        data: data,
+                        contracts: contracts,
                         timestamp: new Date()
                     };
+                } else {
+                    console.log('Cache nao encontrado');
                 }
             } catch (e) {
                 console.error('Erro ao carregar cache:', e);
@@ -213,6 +218,7 @@
             try {
                 localStorage.setItem(CACHE_KEY, JSON.stringify(data));
                 localStorage.setItem(CACHE_CONTRACTS_KEY, JSON.stringify(contracts));
+                console.log('Cache salvo:', data.length, 'registros');
             } catch (e) {
                 console.error('Erro ao salvar cache:', e);
             }
@@ -290,6 +296,7 @@
         }
 
         async function loadData(isUpdate = false) {
+            console.log('loadData called, isUpdate:', isUpdate);
             setLoading(true);
             const statusEl = document.getElementById('lastUpdate');
             const progressBadge = document.getElementById('progressBadge');
@@ -298,6 +305,7 @@
             const mes = document.getElementById('filterMes').value;
             
             try {
+                console.log('Buscando comodatos para mes:', mes);
                 statusEl.textContent = 'Carregando...';
                 const comodatos = await getComodatos(mes);
 
@@ -426,10 +434,12 @@
             } catch (error) {
                 console.error('Erro completo:', error);
                 progressBadge.style.display = 'none';
-                if (cache?.data) {
-                    console.log('Usando cache devido a erro');
-                    statusEl.textContent = 'Erro - cache';
-                    updateTable(cache.data);
+                const currentCache = loadCache();
+                if (currentCache?.data && currentCache.data.length > 0) {
+                    console.log('Usando cache devido a erro, registros:', currentCache.data.length);
+                    statusEl.textContent = 'Erro - usando cache';
+                    const enrichedData = enrichWithOtherContracts(currentCache.data, currentCache.contracts);
+                    updateTable(enrichedData);
                 } else {
                     alert('Erro ao carregar dados: ' + error.message);
                     statusEl.textContent = 'Erro';
@@ -568,14 +578,17 @@
         }
 
         function inicializar() {
+            console.log('Inicializando...');
             const cache = loadCache();
-            if (cache?.data && cache?.contracts) {
+            if (cache?.data && cache?.contracts && cache.data.length > 0) {
+                console.log('Usando cache inicial, registros:', cache.data.length);
                 const enrichedData = enrichWithOtherContracts(cache.data, cache.contracts);
                 document.getElementById('totalCancelados').textContent = enrichedData.length;
                 document.getElementById('lastUpdate').textContent = `Cache: ${cache.timestamp.toLocaleString('pt-BR')}`;
                 updateTable(enrichedData);
                 loadData(true);
             } else {
+                console.log('Cache vazio, carregando dados...');
                 loadData(false);
             }
         }
