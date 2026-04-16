@@ -192,21 +192,21 @@
             return lastDay;
         }
 
-        function loadCache() {
+        function loadCache(mes) {
             try {
-                const cached = localStorage.getItem(CACHE_KEY);
-                const contractsCached = localStorage.getItem(CACHE_CONTRACTS_KEY);
+                const cached = localStorage.getItem(CACHE_KEY + '_' + mes);
+                const contractsCached = localStorage.getItem(CACHE_CONTRACTS_KEY + '_' + mes);
                 if (cached && contractsCached) {
                     const data = JSON.parse(cached);
                     const contracts = JSON.parse(contractsCached);
-                    console.log('Cache carregado:', data.length, 'registros');
+                    console.log('Cache carregado para mes', mes + ':', data.length, 'registros');
                     return {
                         data: data,
                         contracts: contracts,
                         timestamp: new Date()
                     };
                 } else {
-                    console.log('Cache nao encontrado');
+                    console.log('Cache nao encontrado para mes', mes);
                 }
             } catch (e) {
                 console.error('Erro ao carregar cache:', e);
@@ -214,11 +214,11 @@
             return null;
         }
 
-        function saveCache(data, contracts) {
+        function saveCache(data, contracts, mes) {
             try {
-                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-                localStorage.setItem(CACHE_CONTRACTS_KEY, JSON.stringify(contracts));
-                console.log('Cache salvo:', data.length, 'registros');
+                localStorage.setItem(CACHE_KEY + '_' + mes, JSON.stringify(data));
+                localStorage.setItem(CACHE_CONTRACTS_KEY + '_' + mes, JSON.stringify(contracts));
+                console.log('Cache salvo para mes', mes + ':', data.length, 'registros');
             } catch (e) {
                 console.error('Erro ao salvar cache:', e);
             }
@@ -301,8 +301,8 @@
             const statusEl = document.getElementById('lastUpdate');
             const progressBadge = document.getElementById('progressBadge');
             
-            const cache = loadCache();
             const mes = document.getElementById('filterMes').value;
+            const cache = loadCache(mes);
             
             try {
                 console.log('Buscando comodatos para mes:', mes);
@@ -434,13 +434,13 @@
                 statusEl.textContent = `Atualizado:`;
                 progressBadge.style.display = 'none';
 
-                saveCache(results, cachedContracts);
+                saveCache(results, cachedContracts, mes);
                 updateTable(results);
 
             } catch (error) {
                 console.error('Erro completo:', error);
                 progressBadge.style.display = 'none';
-                const currentCache = loadCache();
+                const currentCache = loadCache(mes);
                 if (currentCache?.data && currentCache.data.length > 0) {
                     console.log('Usando cache devido a erro, registros:', currentCache.data.length);
                     statusEl.textContent = 'Erro - usando cache';
@@ -600,16 +600,17 @@
 
         function inicializar() {
             console.log('Inicializando...');
-            const cache = loadCache();
+            const mes = document.getElementById('filterMes').value;
+            const cache = loadCache(mes);
             if (cache?.data && cache?.contracts && cache.data.length > 0) {
-                console.log('Usando cache inicial, registros:', cache.data.length);
+                console.log('Usando cache inicial para mes', mes + ':', cache.data.length, 'registros');
                 const enrichedData = enrichWithOtherContracts(cache.data, cache.contracts);
                 document.getElementById('totalCancelados').textContent = enrichedData.length;
                 document.getElementById('lastUpdate').textContent = `Cache: ${cache.timestamp.toLocaleString('pt-BR')}`;
                 updateTable(enrichedData);
                 loadData(true);
             } else {
-                console.log('Cache vazio, carregando dados...');
+                console.log('Cache vazio para mes', mes + ', carregando dados...');
                 loadData(false);
             }
         }
