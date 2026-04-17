@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Contratos Cancelados com Comodato Ativo</title>
+    <title>Dashboard Financeiro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <style>
@@ -34,6 +34,34 @@
         .status-nao-devolvido { background-color: #f8d7da !important; }
         .badge-devolvido { background-color: #198754; }
         .badge-pendente { background-color: #dc3545; }
+        .muted { color: #6c757d; }
+        .app-footer {
+            margin-top: 24px;
+            padding: 14px 4px 0;
+            display: flex;
+            justify-content: center;
+            font-size: 0.82rem;
+        }
+        .footer-card {
+            background: #ffffff;
+            border: 1px solid rgba(15, 23, 42, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            padding: 10px 14px;
+        }
+        .footer-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            text-align: center;
+        }
+        .footer-brand {
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #212529;
+        }
+        .footer-version { white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -41,85 +69,176 @@
         <div class="row mb-4">
             <div class="col">
                 <h2 class="mb-1">Dashboard Financeiro</h2>
-                <p class="text-muted mb-0">Contratos Cancelados com Comodato Ativo</p>
+                <p class="text-muted mb-0">Cancelados com comodato ativo • Suspensos com boletos vencidos</p>
             </div>
             <div class="col-auto d-flex align-items-center">
-                <span class="last-update me-2" id="lastUpdate"></span>
-                <span class="badge bg-secondary me-3" id="progressBadge" style="display: none;">0/0</span>
-                <button class="btn btn-primary refresh-btn" onclick="loadData(false)" id="refreshBtn">
-                    <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"></span>
-                    <span class="btn-text">Atualizar</span>
+	                <span class="last-update me-2" id="lastUpdate"></span>
+	                <span class="badge bg-secondary me-3" id="progressBadge" style="display: none;">0/0</span>
+	                <button class="btn btn-primary refresh-btn" onclick="refreshActiveTab(true)" id="refreshBtn">
+	                    <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"></span>
+	                    <span class="btn-text">Atualizar</span>
+	                </button>
+	            </div>
+	        </div>
+
+        <ul class="nav nav-tabs mb-3" id="dashboardTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-cancelados-tab" data-bs-toggle="tab" data-bs-target="#tab-cancelados" type="button" role="tab">
+                    Cancelados c/ comodato ativo
                 </button>
-            </div>
-        </div>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-suspensos-tab" data-bs-toggle="tab" data-bs-target="#tab-suspensos" type="button" role="tab">
+                    Suspensos c/ boletos vencidos (+30d)
+                </button>
+            </li>
+        </ul>
 
-        <div class="row mb-4" id="statsRow">
-            <div class="col-md-4">
-                <div class="card stat-card mb-3">
-                    <div class="card-body">
-                        <h6 class="text-muted mb-2">Total Comodatos Ativos</h6>
-                        <h3 id="totalComodatos">-</h3>
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab-cancelados" role="tabpanel">
+                <div class="row mb-4" id="statsRowCancelados">
+                    <div class="col-md-4">
+                        <div class="card stat-card mb-3">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Total Comodatos Ativos</h6>
+                                <h3 id="totalComodatos">-</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card stat-card canceled mb-3">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Contratos Cancelados</h6>
+                                <h3 id="totalCancelados">-</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card stat-card equipment mb-3">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Equipamentos em Risco</h6>
+                                <h3 id="totalEquipamentos">-</h3>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card stat-card canceled mb-3">
-                    <div class="card-body">
-                        <h6 class="text-muted mb-2">Contratos Cancelados</h6>
-                        <h3 id="totalCancelados">-</h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card stat-card equipment mb-3">
-                    <div class="card-body">
-                        <h6 class="text-muted mb-2">Equipamentos em Risco</h6>
-                        <h3 id="totalEquipamentos">-</h3>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="card">
-            <div class="card-header bg-white">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <h5 class="mb-0">Lista de Contratos</h5>
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="mb-0">Lista de Contratos</h5>
+                            </div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-sm" id="filterMes" onchange="loadCancelados(false)" style="width: auto;">
+                                    <option value="01">Janeiro 2026</option>
+                                    <option value="02">Fevereiro 2026</option>
+                                    <option value="03">Março 2026</option>
+                                    <option value="04" selected>Abril 2026</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-auto">
-                        <select class="form-select form-select-sm" id="filterMes" onchange="loadData(false)" style="width: auto;">
-                            <option value="01">Janeiro 2026</option>
-                            <option value="02">Fevereiro 2026</option>
-                            <option value="03">Março 2026</option>
-                            <option value="04" selected>Abril 2026</option>
-                        </select>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table id="tabelaContratos" class="table table-hover" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Contratos</th>
+                                        <th>Clientes</th>
+                                        <th>CPF/CNPJ</th>
+                                        <th>Data Cancelamento</th>
+                                        <th>Equipamentos</th>
+                                        <th>ID Comodato</th>
+                                        <th>Status</th>
+                                        <th>Detalhes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaBody">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted py-4">
+                                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                            Carregando dados...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table id="tabelaContratos" class="table table-hover" style="width:100%">
-                        <thead>
-                            <tr>
-                                <th>Contratos</th>
-                                <th>Clientes</th>
-                                <th>CPF/CNPJ</th>
-                                <th>Data Cancelamento</th>
-                                <th>Equipamentos</th>
-                                <th>ID Comodato</th>
-                                <th>Status</th>
-                                <th>Detalhes</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabelaBody">
-                            <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
-                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                                    Carregando dados...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+            <div class="tab-pane fade" id="tab-suspensos" role="tabpanel">
+                <div class="row mb-4" id="statsRowSuspensos">
+                    <div class="col-md-4">
+                        <div class="card stat-card mb-3">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Contratos Suspensos</h6>
+                                <h3 id="totalSuspensos">-</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card stat-card canceled mb-3">
+                            <div class="card-body">
+	                                <h6 class="text-muted mb-2">Com vencimento &gt;= <span id="diasFiltroLabel">60</span> dias</h6>
+                                <h3 id="totalSuspensosAtraso">-</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card stat-card equipment mb-3">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Valor em aberto (estim.)</h6>
+                                <h3 id="totalValorAberto">-</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="mb-0">Contratos Suspensos com boletos vencidos</h5>
+                            </div>
+                            <div class="col-auto d-flex align-items-center gap-2">
+                                <label for="filterDiasVencido" class="small text-muted mb-0">Dias:</label>
+	                                <input id="filterDiasVencido" type="number" min="1" value="60" class="form-control form-control-sm" style="width: 90px;" onchange="loadSuspensos(false)">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="suspensosError" class="alert alert-warning d-none" role="alert"></div>
+                        <div id="suspensosMeta" class="small text-muted mb-2"></div>
+                        <div class="table-responsive">
+                            <table id="tabelaSuspensos" class="table table-hover" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Contrato</th>
+                                        <th>Cliente</th>
+                                        <th>CPF/CNPJ</th>
+                                        <th>Status</th>
+                                        <th>Cód.</th>
+                                        <th>Dias atraso</th>
+                                        <th>Vencimento</th>
+                                        <th>Valor em aberto</th>
+                                        <th>Detalhes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaSuspensosBody">
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted py-4">
+                                            Selecione a aba e clique em “Atualizar”.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="small text-muted mt-3">
+                            Observação: esta aba consome a API local <code>/api/contratos-suspensos-boletos</code> (servida por <code>server.py</code> na porta 8000). A chamada direta ao SGP via browser pode falhar por CORS/credenciais.
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -148,26 +267,49 @@
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 
     <script>
-        const AUTH_BASIC = 'Basic ' + btoa('robo:Ox(?YMae?0V3V#}HIGcF');
         const CACHE_KEY = 'dashboard_comodatos_cache';
         const CACHE_CONTRACTS_KEY = 'dashboard_contratos_cache';
+        const CACHE_SUSPENSOS_KEY = 'dashboard_suspensos_cache';
 
-        let table;
+	        let tableCancelados;
+	        let tableSuspensos;
+	        let suspensosLoadedOnce = false;
+	        let canceladosAbortCtrl = null;
+	        let suspensosAbortCtrl = null;
 
-        function setLoading(loading) {
-            const btn = document.getElementById('refreshBtn');
-            const spinner = btn.querySelector('.loading-spinner');
-            const text = btn.querySelector('.btn-text');
-            if (loading) {
-                spinner.classList.add('active');
-                text.textContent = 'Carregando...';
-                btn.disabled = true;
-            } else {
-                spinner.classList.remove('active');
-                text.textContent = 'Atualizar';
-                btn.disabled = false;
-            }
-        }
+	        function setLoading(loading) {
+	            const btn = document.getElementById('refreshBtn');
+	            if (!btn) return;
+	            const spinner = btn.querySelector('.loading-spinner');
+	            const text = btn.querySelector('.btn-text');
+	            if (loading) {
+	                spinner.classList.add('active');
+	                text.textContent = 'Carregando...';
+	                btn.disabled = true;
+	            } else {
+	                spinner.classList.remove('active');
+	                text.textContent = 'Atualizar';
+	                btn.disabled = false;
+	            }
+	        }
+
+	        async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+	            const ctrl = new AbortController();
+	            const upstream = options?.signal;
+	            if (upstream) {
+	                if (upstream.aborted) {
+	                    ctrl.abort();
+	                } else {
+	                    upstream.addEventListener('abort', () => ctrl.abort(), { once: true });
+	                }
+	            }
+	            const t = setTimeout(() => ctrl.abort(), timeoutMs);
+	            try {
+	                return await fetch(url, { ...options, signal: ctrl.signal });
+	            } finally {
+	                clearTimeout(t);
+	            }
+	        }
 
         function formatDate(dateStr) {
             if (!dateStr) return '-';
@@ -184,6 +326,41 @@
                 return value.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
             }
             return value;
+        }
+
+        function formatCurrency(value) {
+            if (value === null || value === undefined || value === '' || Number.isNaN(value)) return '-';
+            const n = Number(value);
+            if (!Number.isFinite(n)) return '-';
+            return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function parseNumber(value) {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+            const s = String(value).trim();
+            if (!s) return null;
+            const normalized = s.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function parseDate(value) {
+            if (!value) return null;
+            const s = String(value).trim();
+            if (!s) return null;
+            const isoLike = s.includes('T') ? s : s.replace(' ', 'T');
+            const d = new Date(isoLike);
+            return Number.isNaN(d.getTime()) ? null : d;
+        }
+
+        function diffDaysFromToday(date) {
+            if (!date) return null;
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const ms = start.getTime() - target.getTime();
+            return Math.floor(ms / (1000 * 60 * 60 * 24));
         }
 
         function getLastDayOfMonth(mes) {
@@ -227,21 +404,19 @@
             }
         }
 
-        async function getComodatos(mes) {
-            const ano = 2026;
-            const lastDay = getLastDayOfMonth(mes);
-            const dataInicio = `${ano}-${mes}-01`;
-            const dataFim = `${ano}-${mes}-${lastDay}`;
+	        async function getComodatos(mes, signal = undefined) {
+	            const ano = 2026;
+	            const lastDay = getLastDayOfMonth(mes);
+	            const dataInicio = `${ano}-${mes}-01`;
+	            const dataFim = `${ano}-${mes}-${lastDay}`;
             
-            const url = new URL('https://sgp.net4you.com.br/api/estoque/comodato/list/');
+            // Usa a API local (server.py) para evitar CORS e não expor credenciais no browser.
+            const url = new URL('/comodato/list', window.location.origin);
             url.searchParams.set('data_cadastro_ini', dataInicio);
             url.searchParams.set('data_cadastro_fim', dataFim);
             
-            console.log('Buscando comodatos:', url.toString());
-            
-            const resp = await fetch(url.toString(), {
-                headers: { 'Authorization': AUTH_BASIC }
-            });
+	            console.log('Buscando comodatos:', url.toString());
+	            const resp = await fetchWithTimeout(url.toString(), { cache: 'no-store', signal }, 120000);
             
             console.log('Status resposta:', resp.status, resp.statusText);
             
@@ -257,85 +432,108 @@
             return data;
         }
 
-        async function getContrato(contratoId) {
-            console.log('Buscando contrato:', contratoId);
-            const formData = new URLSearchParams({
-                token: '37ab7243-9e9c-45bc-a393-e2ccbf76eff2',
-                app: 'financeiro',
-                contrato: contratoId
-            });
+	        async function getContrato(contratoId, signal = undefined) {
+	            console.log('Buscando contrato:', contratoId);
+	            const formData = new URLSearchParams({
+	                token: '37ab7243-9e9c-45bc-a393-e2ccbf76eff2',
+	                app: 'financeiro',
+	                contrato: contratoId
+	            });
 
-            const resp = await fetch('https://sgp.net4you.com.br/api/ura/listacontrato/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData.toString()
-            });
+	            // Proxy local (server.py) para evitar CORS.
+	            const resp = await fetchWithTimeout('/contrato/', {
+	                method: 'POST',
+	                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+	                body: formData.toString()
+	            , signal }, 90000);
 
             const text = await resp.text();
             console.log('Contrato resposta:', contratoId, text.substring(0, 200));
+            if (!resp.ok) {
+                console.error('Erro ao buscar contrato:', contratoId, resp.status, resp.statusText, text.substring(0, 200));
+                return [];
+            }
             if (!text) return [];
             try {
-                return JSON.parse(text);
+                const parsed = JSON.parse(text);
+                return Array.isArray(parsed) ? parsed : [];
             } catch {
                 return [];
             }
         }
 
-        async function getComodatoItens(comodatoId) {
-            const url = new URL('https://sgp.net4you.com.br/api/estoque/comodatoitens/list/');
-            url.searchParams.set('comodato_id', comodatoId);
-            
-            const resp = await fetch(url.toString(), {
-                headers: { 'Authorization': AUTH_BASIC }
-            });
+	        async function getComodatoItens(comodatoId, signal = undefined) {
+	            // Usa a API local (server.py) para evitar CORS.
+	            const url = new URL('/comodatoitens/list', window.location.origin);
+	            url.searchParams.set('comodato_id', comodatoId);
+	            const resp = await fetchWithTimeout(url.toString(), { cache: 'no-store', signal }, 90000);
 
             const text = await resp.text();
+            if (!resp.ok) {
+                console.error('Erro ao buscar itens do comodato:', comodatoId, resp.status, resp.statusText, text.substring(0, 200));
+                return [];
+            }
             if (!text) return [];
             try {
-                return JSON.parse(text);
+                const parsed = JSON.parse(text);
+                return Array.isArray(parsed) ? parsed : [];
             } catch {
                 return [];
             }
         }
 
-        async function loadData(isUpdate = false) {
-            console.log('==========================================');
-            console.log('loadData called, isUpdate:', isUpdate);
-            console.log('==========================================');
-            setLoading(true);
-            const statusEl = document.getElementById('lastUpdate');
-            const progressBadge = document.getElementById('progressBadge');
-            
-            const mes = document.getElementById('filterMes').value;
-            console.log('loadData - mes:', mes);
-            let cache = null;
-            
-            console.log('loadData - isUpdate:', isUpdate);
-            
-            if (isUpdate) {
-                cache = loadCache(mes);
-            } else {
-                cache = loadCache(mes);
-                console.log('loadData - cache result:', cache ? cache.data.length + ' registros' : 'null');
-                if (cache && cache.data && cache.data.length > 0) {
-                    console.log('Usando cache existente:', cache.data.length, 'registros');
-                    statusEl.textContent = 'Carregando do cache...';
-                    setLoading(false);
-                    const enrichedData = enrichWithOtherContracts(cache.data, cache.contracts);
-                    updateTable(enrichedData);
-                    document.getElementById('totalCancelados').textContent = cache.data.length;
-                    let totalEq = cache.data.reduce((sum, item) => sum + (item.equipamentos ? item.equipamentos.length : 0), 0);
-                    document.getElementById('totalEquipamentos').textContent = totalEq;
-                    document.getElementById('lastUpdate').textContent = 'Cache:';
-                    return;
-                }
-            }
-            
-            try {
-                console.log('Buscando comodatos para mes:', mes);
-                statusEl.textContent = 'Carregando...';
-                const comodatos = await getComodatos(mes);
-                console.log('Total comodatos da API:', comodatos.length);
+        function getActiveTabKey() {
+            const active = document.querySelector('#dashboardTabs .nav-link.active');
+            return active?.id || 'tab-cancelados-tab';
+        }
+
+	        function refreshActiveTab(isUpdate = false) {
+	            const active = getActiveTabKey();
+	            if (active === 'tab-suspensos-tab') {
+	                loadSuspensos(isUpdate).catch(e => console.error('loadSuspensos failed:', e));
+	            } else {
+	                loadCancelados(isUpdate).catch(e => console.error('loadCancelados failed:', e));
+	            }
+	        }
+
+	        async function loadCancelados(isUpdate = false) {
+	            console.log('==========================================');
+	            console.log('loadCancelados called, isUpdate:', isUpdate);
+	            console.log('==========================================');
+	            setLoading(true);
+	            const statusEl = document.getElementById('lastUpdate');
+	            const progressBadge = document.getElementById('progressBadge');
+	            canceladosAbortCtrl?.abort();
+	            suspensosAbortCtrl?.abort();
+	            canceladosAbortCtrl = new AbortController();
+	            try {
+	                const filterMesEl = document.getElementById('filterMes');
+	                if (!filterMesEl) throw new Error('Elemento #filterMes não encontrado (HTML incompleto).');
+	                const mes = filterMesEl.value;
+	                console.log('loadData - mes:', mes);
+
+	                let cache = loadCache(mes);
+	                console.log('loadData - isUpdate:', isUpdate);
+
+	                if (!isUpdate) {
+	                    console.log('loadData - cache result:', cache ? cache.data.length + ' registros' : 'null');
+	                    if (cache && cache.data && cache.data.length > 0) {
+	                        console.log('Usando cache existente:', cache.data.length, 'registros');
+	                        if (statusEl) statusEl.textContent = 'Carregando do cache...';
+	                        const enrichedData = enrichWithOtherContracts(cache.data, cache.contracts);
+	                        updateTable(enrichedData);
+	                        document.getElementById('totalCancelados').textContent = cache.data.length;
+	                        const totalEq = cache.data.reduce((sum, item) => sum + (item.equipamentos ? item.equipamentos.length : 0), 0);
+	                        document.getElementById('totalEquipamentos').textContent = totalEq;
+	                        if (statusEl) statusEl.textContent = 'Cache:';
+	                        return;
+	                    }
+	                }
+
+	                console.log('Buscando comodatos para mes:', mes);
+	                if (statusEl) statusEl.textContent = 'Carregando...';
+	                const comodatos = await getComodatos(mes, canceladosAbortCtrl.signal);
+	                console.log('Total comodatos da API:', comodatos.length);
 
                 const activeComodatos = comodatos.filter(c => c.status === 2 && c.contrato_id);
                 console.log('Comodatos ativos (status=2):', activeComodatos.length);
@@ -367,7 +565,7 @@
                             progressBadge.style.display = 'inline';
                             
                             if (!(id in cachedContracts)) {
-                                const data = await getContrato(parseInt(id));
+	                                const data = await getContrato(parseInt(id), canceladosAbortCtrl.signal);
                                 if (data && data.length > 0 && data[0].status === 'Cancelado') {
                                     cachedContracts[id] = data[0];
                                     needsUpdate = true;
@@ -391,7 +589,7 @@
                         
 if (!(contratoId in cachedContracts)) {
                                 try {
-                                    const contratoData = await getContrato(contratoId);
+	                                    const contratoData = await getContrato(contratoId, canceladosAbortCtrl.signal);
                                     console.log('Contrato', contratoId, 'resposta:', JSON.stringify(contratoData).substring(0, 300));
                                     if (contratoData && contratoData.length > 0) {
                                         const contrato = contratoData[0];
@@ -441,8 +639,8 @@ if (!(contratoId in cachedContracts)) {
                         let otherActiveContracts = [];
                         
                         if (comodatoDoContratoCancelado) {
-                            const itens = await getComodatoItens(comodatoDoContratoCancelado.id);
-                            comodatoItens = itens;
+	                            const itens = await getComodatoItens(comodatoDoContratoCancelado.id, canceladosAbortCtrl.signal);
+	                            comodatoItens = itens;
                             equipamentos = itens.map(i => i.produto__descricao || 'N/A');
                             totalEquipamentos += itens.reduce((sum, i) => sum + (parseFloat(i.quantidade) || 0), 0);
                         }
@@ -470,33 +668,41 @@ if (!(contratoId in cachedContracts)) {
                 results.sort((a, b) => new Date(b.data_status) - new Date(a.data_status));
                 console.log('Resultados encontrados:', results.length);
 
-                document.getElementById('totalCancelados').textContent = results.length;
-                document.getElementById('totalEquipamentos').textContent = Math.round(totalEquipamentos);
-                statusEl.textContent = `Atualizado:`;
-                progressBadge.style.display = 'none';
+	                document.getElementById('totalCancelados').textContent = results.length;
+	                document.getElementById('totalEquipamentos').textContent = Math.round(totalEquipamentos);
+	                if (statusEl) statusEl.textContent = `Atualizado:`;
+	                if (progressBadge) progressBadge.style.display = 'none';
 
-                saveCache(results, cachedContracts, mes);
-                console.log('Chamando updateTable com', results.length, 'resultados');
-                updateTable(results);
-                console.log('Tabela atualizada, tbody children:', document.getElementById('tabelaBody').children.length);
+	                saveCache(results, cachedContracts, mes);
+	                console.log('Chamando updateTable com', results.length, 'resultados');
+	                updateTable(results);
+	                console.log('Tabela atualizada, tbody children:', document.getElementById('tabelaBody').children.length);
 
-            } catch (error) {
-                console.error('Erro completo:', error);
-                progressBadge.style.display = 'none';
-                const currentCache = loadCache(mes);
-                if (currentCache?.data && currentCache.data.length > 0) {
-                    console.log('Usando cache devido a erro, registros:', currentCache.data.length);
-                    statusEl.textContent = 'Erro - usando cache';
-                    const enrichedData = enrichWithOtherContracts(currentCache.data, currentCache.contracts);
-                    updateTable(enrichedData);
-                } else {
-                    alert('Erro ao carregar dados: ' + error.message);
-                    statusEl.textContent = 'Erro';
-                }
-            } finally {
-                setLoading(false);
-            }
-        }
+	            } catch (error) {
+	                console.error('Erro completo:', error);
+	                if (progressBadge) progressBadge.style.display = 'none';
+	                const mes = document.getElementById('filterMes')?.value;
+	                const currentCache = mes ? loadCache(mes) : null;
+	                if (currentCache?.data && currentCache.data.length > 0) {
+	                    console.log('Usando cache devido a erro, registros:', currentCache.data.length);
+	                    if (statusEl) statusEl.textContent = 'Erro - usando cache';
+	                    const enrichedData = enrichWithOtherContracts(currentCache.data, currentCache.contracts);
+	                    updateTable(enrichedData);
+	                } else {
+	                    const detail = error?.name === 'AbortError'
+	                        ? 'Tempo limite excedido (ou operação cancelada) ao consultar a API local/SGP.'
+	                        : (error?.message || error);
+	                    const msg = 'Erro ao carregar dados: ' + detail;
+	                    alert(msg);
+	                    if (statusEl) statusEl.textContent = 'Erro';
+	                }
+	            } finally {
+	                if (canceladosAbortCtrl && canceladosAbortCtrl.signal.aborted) {
+	                    // não sobrescrever o estado do usuário caso tenha mudado de aba no meio
+	                }
+	                setLoading(false);
+	            }
+	        }
 
         function updateTable(data) {
             console.log('updateTable called with', data.length, 'items');
@@ -532,8 +738,8 @@ if (!(contratoId in cachedContracts)) {
                 </tr>
             `).join('');
 
-            if (table) table.destroy();
-            table = new DataTable('#tabelaContratos', {
+            if (tableCancelados) tableCancelados.destroy();
+            tableCancelados = new DataTable('#tabelaContratos', {
                 pageLength: 25,
                 order: [[3, 'desc']],
                 drawCallback: function() {
@@ -558,8 +764,302 @@ if (!(contratoId in cachedContracts)) {
             });
         }
 
+        function loadSuspensosCache(diasMin) {
+            try {
+                const cached = localStorage.getItem(CACHE_SUSPENSOS_KEY + '_' + diasMin);
+                if (!cached) return null;
+                const payload = JSON.parse(cached);
+                if (!payload || !Array.isArray(payload.data)) return null;
+                return payload;
+            } catch {
+                return null;
+            }
+        }
+
+        function saveSuspensosCache(data, diasMin) {
+            try {
+                localStorage.setItem(CACHE_SUSPENSOS_KEY + '_' + diasMin, JSON.stringify({
+                    data,
+                    timestamp: new Date().toISOString()
+                }));
+            } catch {}
+        }
+
+        function pickFirst(item, keys) {
+            for (const k of keys) {
+                if (item && Object.prototype.hasOwnProperty.call(item, k) && item[k] !== null && item[k] !== undefined && item[k] !== '') {
+                    return item[k];
+                }
+            }
+            return null;
+        }
+
+        function getContratoStatus(item) {
+            const v = pickFirst(item, ['contrato_status', 'status_contrato', 'status', 'situacao', 'contrato_situacao']);
+            return v ? String(v) : '-';
+        }
+
+        function getDiasAtraso(item) {
+            const direct = pickFirst(item, [
+                'dias_atraso',
+                'dias_em_atraso',
+                'dias_vencido',
+                'dias_inadimplencia',
+                'dias_debito',
+                'dias_em_aberto',
+                'dias_atraso_boleto'
+            ]);
+            const n = parseNumber(direct);
+            if (n !== null) return Math.floor(n);
+
+            const dateStr = pickFirst(item, [
+                'ultimo_vencimento',
+                'vencimento',
+                'data_vencimento',
+                'titulo_vencimento',
+                'boleto_vencimento',
+                'vencimento_boleto'
+            ]);
+            const d = parseDate(dateStr);
+            const days = diffDaysFromToday(d);
+            return days === null ? null : days;
+        }
+
+        function getVencimento(item) {
+            const dateStr = pickFirst(item, [
+                'ultimo_vencimento',
+                'vencimento',
+                'data_vencimento',
+                'titulo_vencimento',
+                'boleto_vencimento',
+                'vencimento_boleto'
+            ]);
+            const d = parseDate(dateStr);
+            return d ? d.toISOString().slice(0, 10) : (dateStr ? String(dateStr).slice(0, 10) : '-');
+        }
+
+        function getValorAberto(item) {
+            const v = pickFirst(item, [
+                'valor_em_aberto',
+                'valor_aberto',
+                'valor_vencido',
+                'total_em_aberto',
+                'total_aberto',
+                'total_vencido'
+            ]);
+            return parseNumber(v);
+        }
+
+        function getLocalProxyBase() {
+            // Preferir mesma origem (quando o proxy está servindo o dashboard também)
+            if (window.location.origin) return window.location.origin;
+
+            const host = window.location.hostname;
+            return 'http://' + host + ':8000';
+        }
+
+	        async function fetchSuspensosFromLocalApi(diasMin, signal = undefined) {
+	            // 1) Primeiro: mesma origem (mais confiável, sem CORS / sem depender de localhost/127.0.0.1)
+	            const sameOriginUrl = `/api/contratos-suspensos-boletos?dias=${encodeURIComponent(String(diasMin))}`;
+	            try {
+	                const resp = await fetchWithTimeout(sameOriginUrl, { cache: 'no-store', signal }, 120000);
+	                if (resp.ok) {
+	                    const data = await resp.json();
+	                    if (data && typeof data === 'object' && data.meta) window.__suspensosMeta = data.meta;
+	                    if (Array.isArray(data)) return data;
+	                    if (data && Array.isArray(data.items)) return data.items;
+	                    return null;
+	                }
+	                // Se 404, tenta os fallbacks abaixo (caso o dashboard não esteja sendo servido pelo proxy)
+	                if (resp.status !== 404) {
+	                    const text = await resp.text();
+	                    try {
+	                        const j = JSON.parse(text);
+	                        const msg = j?.details?.message || j?.error || text;
+	                        throw new Error(`API local (mesma origem) retornou HTTP ${resp.status}: ${String(msg).substring(0, 220)}`);
+	                    } catch {
+	                        throw new Error(`API local (mesma origem) retornou HTTP ${resp.status}: ${text.substring(0, 220)}`);
+	                    }
+	                }
+	            } catch (e) {
+	                if (e?.name === 'AbortError' || signal?.aborted) throw e;
+	                // continua para os fallbacks
+	                console.warn('Falha na API local (mesma origem), tentando fallbacks:', e?.message || e);
+	            }
+
+	            const bases = [];
+	            const primary = getLocalProxyBase();
+	            if (primary) bases.push(primary);
+	            if (window.location.origin && window.location.origin !== primary) bases.push(window.location.origin);
+	            bases.push('http://127.0.0.1:8000');
+	            bases.push('http://localhost:8000');
+
+            const uniqueBases = [...new Set(bases.filter(Boolean))];
+            let lastError = null;
+
+	            for (const base of uniqueBases) {
+	                const url = `${base}/api/contratos-suspensos-boletos?dias=${encodeURIComponent(String(diasMin))}`;
+	                try {
+	                    const resp = await fetchWithTimeout(url, { cache: 'no-store', signal }, 120000);
+	                    if (resp.ok) {
+	                        const data = await resp.json();
+	                        if (data && typeof data === 'object' && data.meta) window.__suspensosMeta = data.meta;
+	                        if (Array.isArray(data)) return data;
+	                        if (data && Array.isArray(data.items)) return data.items;
+                        return null;
+                    }
+
+                    if (resp.status === 404) {
+                        continue;
+                    }
+
+                    const text = await resp.text();
+                    try {
+                        const j = JSON.parse(text);
+                        const msg = j?.details?.message || j?.error || text;
+                        const attempt = Array.isArray(j?.details?.attempts) && j.details.attempts.length ? j.details.attempts[0] : null;
+                        const extra = attempt
+                            ? ` | tentativa: ${attempt.status_code || '-'} ${(attempt.body_head || '').toString().substring(0, 120)}`
+                            : '';
+                        lastError = `API local (${base}) retornou HTTP ${resp.status}: ${String(msg).substring(0, 220)}${extra}`;
+                    } catch {
+                        lastError = `API local (${base}) retornou HTTP ${resp.status}: ${text.substring(0, 220)}`;
+                    }
+                } catch (e) {
+                    lastError = `Falha ao conectar na API local (${base}): ${e?.message || e}`;
+                }
+            }
+
+            if (lastError) throw new Error(lastError);
+            return null;
+        }
+
+	        async function loadSuspensos(isUpdate = false) {
+	            setLoading(true);
+	            const statusEl = document.getElementById('lastUpdate');
+	            const errBox = document.getElementById('suspensosError');
+	            const metaBox = document.getElementById('suspensosMeta');
+	            const suspTbody = document.getElementById('tabelaSuspensosBody');
+	            suspensosAbortCtrl?.abort();
+	            canceladosAbortCtrl?.abort();
+	            suspensosAbortCtrl = new AbortController();
+	            try {
+	                const diasMin = Math.max(1, parseInt(document.getElementById('filterDiasVencido')?.value || '60', 10));
+	                document.getElementById('diasFiltroLabel').textContent = String(diasMin);
+	                if (errBox) {
+	                    errBox.classList.add('d-none');
+	                    errBox.textContent = '';
+	                }
+	                if (metaBox) metaBox.textContent = '';
+
+	                if (!isUpdate) {
+	                    const cache = loadSuspensosCache(diasMin);
+	                    if (cache?.data?.length) {
+	                        if (statusEl) statusEl.textContent = 'Cache:';
+	                        document.getElementById('totalSuspensos').textContent = '-';
+	                        document.getElementById('totalSuspensosAtraso').textContent = cache.data.length;
+	                        const totalValor = cache.data.reduce((sum, x) => sum + (Number.isFinite(x.valor_aberto) ? x.valor_aberto : 0), 0);
+	                        document.getElementById('totalValorAberto').textContent = totalValor > 0 ? formatCurrency(totalValor) : '-';
+	                        updateTableSuspensos(cache.data);
+	                        suspensosLoadedOnce = true;
+	                        return;
+	                    }
+	                }
+
+	                if (statusEl) statusEl.textContent = 'Carregando...';
+	                if (suspTbody) {
+	                    suspTbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Carregando dados...</td></tr>';
+	                }
+	                const fromLocal = await fetchSuspensosFromLocalApi(diasMin, suspensosAbortCtrl.signal);
+	                if (!fromLocal) {
+	                    throw new Error('API local de Suspensos não encontrada. Rode `python3 server.py` na porta 8000 (em vez de `run_server.py`).');
+	                }
+
+	                document.getElementById('totalSuspensos').textContent = '-';
+	                document.getElementById('totalSuspensosAtraso').textContent = fromLocal.length;
+	                const totalValor = fromLocal.reduce((sum, x) => sum + (Number.isFinite(x.valor_aberto) ? x.valor_aberto : 0), 0);
+	                document.getElementById('totalValorAberto').textContent = totalValor > 0 ? formatCurrency(totalValor) : '-';
+	                if (statusEl) statusEl.textContent = 'Atualizado:';
+	                saveSuspensosCache(fromLocal, diasMin);
+	                updateTableSuspensos(fromLocal);
+	                if (metaBox && window.__suspensosMeta) {
+	                    const m = window.__suspensosMeta;
+	                    metaBox.textContent = `Meta: atrasados=${m.contratos_com_titulo_vencido ?? '-'} • suspensos=${m.contratos_suspensos ?? '-'} • tempo=${m.seconds ?? '-'}s • janela=${m.data_ini ?? ''}..${m.data_fim ?? ''}`;
+	                }
+	                suspensosLoadedOnce = true;
+	                return;
+	            } catch (e) {
+	                console.error(e);
+	                if (statusEl) statusEl.textContent = 'Erro';
+	                const detail = e?.name === 'AbortError'
+	                    ? 'Tempo limite excedido (ou operação cancelada) ao consultar a API local.'
+	                    : (e?.message || e);
+	                const msg = 'Erro ao carregar Suspensos: ' + detail;
+	                if (errBox) {
+	                    errBox.textContent = msg;
+	                    errBox.classList.remove('d-none');
+	                } else {
+	                    alert(msg);
+	                }
+	            } finally {
+	                setLoading(false);
+	            }
+	        }
+
+        function updateTableSuspensos(data) {
+            const tbody = document.getElementById('tabelaSuspensosBody');
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Nenhum contrato suspenso com boletos vencidos no critério informado.</td></tr>';
+                if (tableSuspensos) tableSuspensos.destroy();
+                return;
+            }
+
+            tbody.innerHTML = data.map((item) => `
+                <tr>
+                    <td><strong>${item.contrato_id}</strong></td>
+                    <td>${item.nome || '-'}</td>
+                    <td>${formatCpfCnpj(item.cpfcnpj || '')}</td>
+                    <td>${item.status || '-'}</td>
+                    <td>${item.status_code ?? '-'}</td>
+                    <td>${item.dias_atraso ?? '-'}</td>
+                    <td>${item.vencimento || '-'}</td>
+                    <td>${item.valor_aberto !== null ? formatCurrency(item.valor_aberto) : '-'}</td>
+                    <td>
+                        ${item.cliente_id ? `<button class="btn btn-sm btn-outline-primary" onclick="verDetalhes(${item.cliente_id})">Cliente</button>` : ''}
+                        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="verContrato('${item.contrato_id}')">Contrato</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            if (tableSuspensos) tableSuspensos.destroy();
+            tableSuspensos = new DataTable('#tabelaSuspensos', {
+                pageLength: 25,
+                order: [[5, 'desc']],
+                language: {
+                    "sEmptyTable": "Nenhum registro encontrado",
+                    "sInfo": "Mostrando de _START_ ate _END_ de _TOTAL_ registros",
+                    "sInfoEmpty": "Mostrando 0 ate 0 de 0 registros",
+                    "sLengthMenu": "_MENU_ registros por pagina",
+                    "sLoadingRecords": "Carregando...",
+                    "sProcessing": "Processando...",
+                    "sSearch": "Pesquisar:",
+                    "sZeroRecords": "Nenhum registro encontrado",
+                    "oPaginate": {
+                        "sNext": "Proximo",
+                        "sPrevious": "Anterior",
+                        "sFirst": "Primeiro",
+                        "sLast": "Ultimo"
+                    }
+                }
+            });
+        }
+
         function verDetalhes(clienteId) {
             window.open(`https://sgp.net4you.com.br/admin/cliente/${clienteId}/edit/`, '_blank');
+        }
+
+        function verContrato(contratoId) {
+            window.open(`https://sgp.net4you.com.br/admin/contrato/${contratoId}/edit/`, '_blank');
         }
 
         function salvarAcao(index) {
@@ -644,7 +1144,7 @@ if (!(contratoId in cachedContracts)) {
 
         function inicializar() {
             console.log('Inicializando...');
-            loadData(false);
+            // a carga inicial agora é decidida no DOMContentLoaded (para respeitar #suspensos)
         }
 
         function loadVersion() {
@@ -653,21 +1153,64 @@ if (!(contratoId in cachedContracts)) {
                 .then(text => {
                     const match = text.match(/VERSION = "([^"]+)"/);
                     if (match) {
-                        document.getElementById('version').textContent = match[1];
+                        const el = document.getElementById('footerVersion');
+                        if (el) el.textContent = `Versão: ${match[1]}`;
                     }
                 })
                 .catch(() => {});
         }
 
+        function setActiveTabFromHash() {
+            const hash = (window.location.hash || '').toLowerCase();
+            const tabId = hash === '#suspensos' ? 'tab-suspensos-tab' : (hash === '#cancelados' ? 'tab-cancelados-tab' : null);
+            if (!tabId) return;
+
+            const trigger = document.getElementById(tabId);
+            if (!trigger) return;
+            const tab = bootstrap.Tab.getOrCreateInstance(trigger);
+            tab.show();
+        }
+
+        function updateHashFromActiveTab() {
+            const active = getActiveTabKey();
+            const next = active === 'tab-suspensos-tab' ? '#suspensos' : '#cancelados';
+            if (window.location.hash !== next) window.location.hash = next;
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             inicializar();
             loadVersion();
+
+            document.getElementById('tab-suspensos-tab').addEventListener('shown.bs.tab', () => {
+                if (!suspensosLoadedOnce) loadSuspensos(false);
+                updateHashFromActiveTab();
+                const progressBadge = document.getElementById('progressBadge');
+                if (progressBadge) progressBadge.style.display = 'none';
+            });
+
+            document.getElementById('tab-cancelados-tab').addEventListener('shown.bs.tab', () => {
+                updateHashFromActiveTab();
+            });
+
+            const initialHash = (window.location.hash || '').toLowerCase();
+            if (initialHash === '#suspensos') {
+                setActiveTabFromHash();
+                // o shown.bs.tab acima dispara o loadSuspensos(false)
+            } else {
+                // default: carrega Cancelados sem iniciar o fluxo dos Suspensos
+                if (initialHash === '#cancelados') setActiveTabFromHash();
+                loadCancelados(false);
+            }
         });
-        setInterval(() => loadData(true), 5 * 60 * 1000);
+        setInterval(() => refreshActiveTab(true), 5 * 60 * 1000);
     </script>
-    <footer class="text-center py-3 mt-4" style="background: #f8f9fa; border-top: 1px solid #dee2e6;">
-        <strong>NET4YOU INTERNET SOLUTION</strong><br>
-        Versão: <span id="version">1.0.0</span>
+    <footer class="app-footer" aria-label="Rodape">
+        <div class="footer-card">
+            <div class="footer-stack">
+                <div class="footer-brand">NET4YOU INTERNET SOLUTION &reg;</div>
+                <div id="footerVersion" class="footer-version muted"></div>
+            </div>
+        </div>
     </footer>
 </body>
 </html>
