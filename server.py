@@ -27,7 +27,7 @@ AUTH_ENABLED = True
 AUTH_JWT_SECRET = "dashboard-secret-change-in-production"
 AUTH_ADMIN_GROUP = "financeiro"
 AUTH_TOKEN_TTL_SECONDS = 12 * 60 * 60
-REQUERER_CONTEUDO = "Financeiro - Negociação"
+REQUERER_CONTEUDO = "Financeiro - Negociação (Suspenso)"
 REQUERER_OCORRENCIA_TIPO = 140
 REQUERER_MOTIVO_OS = 4018
 REQUERER_SETOR = 1
@@ -300,8 +300,17 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return None
         wanted_tipo = int(REQUERER_OCORRENCIA_TIPO)
         wanted_motivo = int(REQUERER_MOTIVO_OS)
-        wanted_class = str(REQUERER_CLASSIFICACAO_VALUE or "").strip().lower()
-        wanted_conteudo = str(REQUERER_CONTEUDO or "").strip().lower()
+
+        def norm_text(value):
+            s = str(value or "").strip().lower()
+            if not s:
+                return ""
+            # remove acentos para evitar mismatch (ex.: "Negociacao" vs "Negociação")
+            s = unicodedata.normalize("NFKD", s)
+            return "".join(ch for ch in s if not unicodedata.combining(ch))
+
+        wanted_class = norm_text(REQUERER_CLASSIFICACAO_VALUE)
+        wanted_conteudo = norm_text(REQUERER_CONTEUDO)
 
         def to_int(x):
             try:
@@ -315,16 +324,28 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 continue
             tipo = to_int(oc.get("ocorrenciatipo") or oc.get("ocorrencia_tipo") or oc.get("ocorrenciaTipo") or oc.get("tipo") or oc.get("tipo_id"))
             motivo = to_int(oc.get("motivoos") or oc.get("motivo_os") or oc.get("motivo") or oc.get("motivo_id"))
-            conteudo = str(oc.get("conteudo") or oc.get("assunto") or oc.get("titulo") or "").strip().lower()
-            classificacao = str(oc.get("classificacao") or oc.get("classificação") or oc.get("status") or oc.get("situacao") or "").strip().lower()
+            conteudo = norm_text(oc.get("conteudo") or oc.get("assunto") or oc.get("titulo"))
+            tipo_label = norm_text(
+                oc.get("ocorrenciatipo_descricao")
+                or oc.get("ocorrenciatipo_label")
+                or oc.get("tipo_label")
+                or oc.get("tipo_descricao")
+                or oc.get("tipo_descricao_label")
+            )
+            classificacao = norm_text(oc.get("classificacao") or oc.get("classificação") or oc.get("status") or oc.get("situacao"))
 
             if tipo is not None and tipo != wanted_tipo:
                 continue
             if motivo is not None and motivo != wanted_motivo:
                 continue
-            if wanted_conteudo and conteudo and wanted_conteudo not in conteudo:
-                # não elimina quando conteudo vazio, só quando existe e não bate
-                continue
+            if wanted_conteudo:
+                # tenta bater com o "conteudo/assunto" e/ou com o label do tipo
+                if conteudo and wanted_conteudo not in conteudo and tipo_label and wanted_conteudo not in tipo_label:
+                    continue
+                if conteudo and wanted_conteudo not in conteudo and not tipo_label:
+                    continue
+                if tipo_label and wanted_conteudo not in tipo_label and not conteudo:
+                    continue
             if wanted_class and classificacao and wanted_class not in classificacao:
                 continue
 
