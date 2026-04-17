@@ -38,12 +38,13 @@
 	        .row-multi-boleto { background-color: rgba(255, 193, 7, 0.12) !important; }
 	        .row-multi-boleto:hover { background-color: rgba(255, 193, 7, 0.22) !important; }
 	        .row-has-boletos { cursor: pointer; }
-	        .boletos-child { padding: 6px 10px; }
-	        .boletos-child-title { margin-bottom: 6px; }
-	        .boletos-child-list { border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 10px; padding: 6px 10px; background: #fff; max-height: 220px; overflow: auto; }
-	        .boleto-line { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-	        .boleto-line + .boleto-line { border-top: 1px dashed rgba(15, 23, 42, 0.10); margin-top: 6px; padding-top: 6px; }
-	        .boleto-valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
+	        .boletos-child-title { margin: 6px 0 8px; padding: 0 8px; }
+	        .boletos-child-scroll { max-height: 220px; overflow: auto; padding: 0 8px 8px; }
+	        .boletos-child-table { width: 100%; border-collapse: collapse; }
+	        .boletos-child-table td { padding: 4px 8px; vertical-align: top; }
+	        .boletos-child-table tr + tr td { border-top: 1px dashed rgba(15, 23, 42, 0.10); }
+	        .boletos-child-venc { color: #6c757d; white-space: nowrap; }
+	        .boletos-child-valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
 	        .app-footer {
 	            margin-top: 24px;
 	            padding: 14px 4px 0;
@@ -1036,26 +1037,38 @@ if (!(contratoId in cachedContracts)) {
             const error = opts.error ? String(opts.error) : '';
             const title = `<div class="fw-semibold boletos-child-title">Boletos vencidos • Contrato ${escapeHtml(contratoId)}</div>`;
             if (loading) {
-                return `<div class="boletos-child">${title}<div class="text-muted small"><span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Carregando boletos...</div></div>`;
+                return `<div>${title}<div class="text-muted small px-2 pb-2"><span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Carregando boletos...</div></div>`;
             }
             if (error) {
-                return `<div class="boletos-child">${title}<div class="text-danger small">Falha ao carregar boletos: ${escapeHtml(error)}</div></div>`;
+                return `<div>${title}<div class="text-danger small px-2 pb-2">Falha ao carregar boletos: ${escapeHtml(error)}</div></div>`;
             }
             const vencidos = Array.isArray(boletos)
                 ? boletos.filter(b => Number(b?.dias_atraso ?? 0) > 0)
                 : [];
             if (!vencidos.length) {
-                return `<div class="boletos-child">${title}<div class="text-muted small">Nenhum boleto vencido em aberto encontrado.</div></div>`;
+                return `<div>${title}<div class="text-muted small px-2 pb-2">Nenhum boleto vencido em aberto encontrado.</div></div>`;
             }
 
-            // Layout compacto: mesma ideia da linha fechada (vencimento à esquerda, valor à direita).
-            const rows = vencidos.map(b => {
+            // Layout alinhado às colunas: vencimento embaixo de "Vencimento" e valor embaixo de "Valor em aberto".
+            // A tabela de Suspensos tem 8 colunas; aqui repetimos 8 <td> e preenchermos só as colunas 6 e 7.
+            const rows = vencidos.map((b) => {
                 const venc = formatDateOnly(b?.vencimento);
                 const valor = (b && (b.valor ?? b.valor_aberto ?? b.valor_em_aberto));
                 const valorFmt = (valor !== null && valor !== undefined) ? formatCurrency(valor) : '-';
-                return `<div class="boleto-line small"><div class="text-muted">${escapeHtml(venc)}</div><div class="boleto-valor">${escapeHtml(valorFmt)}</div></div>`;
+                return `
+                    <tr class="small">
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td class="boletos-child-venc">${escapeHtml(venc)}</td>
+                        <td class="boletos-child-valor">${escapeHtml(valorFmt)}</td>
+                        <td></td>
+                    </tr>
+                `;
             }).join('');
-            return `<div class="boletos-child">${title}<div class="boletos-child-list">${rows}</div></div>`;
+            return `<div>${title}<div class="boletos-child-scroll"><table class="boletos-child-table">${rows}</table></div></div>`;
         }
 
         async function fetchBoletosDoContrato(contratoId) {
@@ -1132,10 +1145,10 @@ if (!(contratoId in cachedContracts)) {
                     const valor = (oldest && (oldest.valor ?? oldest.valor_aberto ?? oldest.valor_em_aberto));
                     const valorHtml = (valor !== null && valor !== undefined) ? formatCurrency(valor) : '-';
                     const moreCount = boletos.length - 1;
-                    const more = moreCount > 0
-                        ? `<div class="small text-muted">+${moreCount} boleto(s) (clique na linha)</div>`
-                        : `<div class="small text-muted">clique na linha</div>`;
-                    return `<div class="small"><span class="text-muted">${formatDateOnly(venc)}</span> ${valorHtml}</div>${more}`;
+                    const badge = moreCount > 0
+                        ? `<span class="ms-1 small text-danger">+${moreCount}</span>`
+                        : '';
+                    return `<div class="small"><span class="text-muted">${formatDateOnly(venc)}</span> <span class="boletos-child-valor">${valorHtml}</span>${badge}</div>`;
                 }
                 if (item.valor_aberto !== null && item.valor_aberto !== undefined) return formatCurrency(item.valor_aberto);
                 return '-';
