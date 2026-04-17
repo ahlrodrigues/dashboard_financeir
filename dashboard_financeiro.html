@@ -47,6 +47,8 @@
 	        .boletos-cell { padding: 0.5rem; }
 	        .boletos-cell-venc { color: #6c757d; white-space: nowrap; }
 	        .boletos-cell-valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
+	        .boleto-vencido .boletos-cell-venc,
+	        .boleto-vencido .boletos-cell-valor { color: #dc3545; }
 	        .boletos-total-label { color: #6c757d; font-weight: 600; }
 	        .boletos-total-value { font-weight: 700; }
 	        .app-footer {
@@ -1208,7 +1210,7 @@ if (!(contratoId in cachedContracts)) {
                 const valorFmt = (valor !== null && valor !== undefined) ? formatCurrency(valor) : '-';
                 if (Number.isFinite(Number(valor))) total += Number(valor);
                 return `
-                    <div class="boletos-row small">
+                    <div class="boletos-row small boleto-vencido">
                         <div class="boletos-cell"></div>
                         <div class="boletos-cell"></div>
                         <div class="boletos-cell"></div>
