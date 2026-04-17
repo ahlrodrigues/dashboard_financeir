@@ -1028,7 +1028,7 @@ if (!(contratoId in cachedContracts)) {
         function buildBoletosDetailsHtml(contratoId, boletos, diasMin, opts = {}) {
             const loading = !!opts.loading;
             const error = opts.error ? String(opts.error) : '';
-            const title = `<div class="fw-semibold mb-1">Boletos em aberto • Contrato ${escapeHtml(contratoId)} (>= ${escapeHtml(diasMin)} dias)</div>`;
+            const title = `<div class="fw-semibold mb-1">Boletos em aberto • Contrato ${escapeHtml(contratoId)}</div>`;
             if (loading) {
                 return `<div class="p-2">${title}<div class="text-muted small"><span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Carregando boletos...</div></div>`;
             }
@@ -1049,8 +1049,8 @@ if (!(contratoId in cachedContracts)) {
             return `<div class="p-2">${title}<div class="border rounded">${rows}</div></div>`;
         }
 
-        async function fetchBoletosDoContrato(contratoId, diasMin) {
-            const url = `/api/boletos?contrato=${encodeURIComponent(String(contratoId))}&dias=${encodeURIComponent(String(diasMin))}`;
+        async function fetchBoletosDoContrato(contratoId) {
+            const url = `/api/boletos?contrato=${encodeURIComponent(String(contratoId))}`;
             const resp = await fetchWithTimeout(url, { cache: 'no-store' }, 90000);
             const text = await resp.text();
             if (!resp.ok) throw new Error(text.substring(0, 200));
@@ -1089,7 +1089,7 @@ if (!(contratoId in cachedContracts)) {
                     const item = window.__suspensosByContratoId?.[String(contratoId)];
                     let boletos = Array.isArray(item?.boletos) ? item.boletos : null;
                     if (!boletos) {
-                        boletos = await fetchBoletosDoContrato(contratoId, diasMin);
+                        boletos = await fetchBoletosDoContrato(contratoId);
                         if (item) item.boletos = boletos;
                     }
                     row.child(buildBoletosDetailsHtml(contratoId, boletos, diasMin)).show();

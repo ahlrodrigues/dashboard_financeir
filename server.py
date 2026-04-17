@@ -548,8 +548,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         return out
 
-    def _get_boletos_em_aberto(self, contrato_id, dias_min):
-        key = f"{contrato_id}:{int(dias_min)}"
+    def _get_boletos_em_aberto(self, contrato_id, dias_min=None):
+        dias_key = "all" if dias_min is None else str(int(dias_min))
+        key = f"{contrato_id}:{dias_key}"
         cached = ProxyHandler.titulos_cache.get(key)
         if cached and (time.time() - cached.get("ts", 0)) < ProxyHandler.TITULOS_TTL_SECONDS:
             return cached.get("items") or []
@@ -564,13 +565,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 if not venc:
                     continue
                 dias = (date.today() - venc).days
-                if dias < int(dias_min):
+                if dias_min is not None and dias < int(dias_min):
                     continue
                 valor = self._titulo_valor(t)
+                status_txt = self._pick_first(t, ["status", "situacao", "titulo_status"])
                 out.append({
                     "vencimento": venc.isoformat(),
                     "valor": round(float(valor), 2) if valor is not None else None,
                     "dias_atraso": int(dias),
+                    "status": str(status_txt) if status_txt is not None else None,
                 })
             except Exception:
                 continue
@@ -673,11 +676,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             params = parse_qs(parsed.query)
             contrato_id = (params.get('contrato', [''])[0] or '').strip()
             try:
-                dias_min = int(params.get('dias', ['0'])[0] or 0)
-                if dias_min < 0:
-                    dias_min = 0
+                dias_raw = params.get('dias', [None])[0]
+                dias_min = None if (dias_raw is None or str(dias_raw).strip() == '') else int(dias_raw)
             except Exception:
-                dias_min = 0
+                dias_min = None
 
             if not contrato_id:
                 self._send_json(400, {"error": "Parâmetro obrigatório ausente: contrato"})
@@ -889,7 +891,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                             boletos_truncated = True
                             break
                         try:
-                            item["boletos"] = self._get_boletos_em_aberto(item.get("contrato_id"), dias_min)
+                            # Detalhe: traz todos os boletos em aberto do contrato (não apenas os >= dias_min),
+                            # porque o usuário precisa ver a lista completa.
+                            item["boletos"] = self._get_boletos_em_aberto(item.get("contrato_id"), None)
                         except Exception:
                             item["boletos"] = []
                         boletos_enriched += 1
