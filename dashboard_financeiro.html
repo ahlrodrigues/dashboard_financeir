@@ -38,11 +38,13 @@
 	        .row-multi-boleto { background-color: rgba(255, 193, 7, 0.12) !important; }
 	        .row-multi-boleto:hover { background-color: rgba(255, 193, 7, 0.22) !important; }
 	        .row-has-boletos { cursor: pointer; }
-	        .boletos-child-title { margin: 6px 0 8px; padding: 0 8px; }
-	        .boletos-child-scroll { max-height: 220px; overflow: auto; padding: 0 8px 8px; }
+	        /* Evitar "indent" extra do row.child (DataTables/Bootstrap) e alinhar com as colunas */
+	        #tabelaSuspensos tbody tr.child > td { padding: 0 !important; }
+	        .boletos-child-title { margin: 6px 0 8px; padding: 0.5rem; }
+	        .boletos-child-scroll { max-height: 220px; overflow: auto; padding: 0 0 0.5rem; }
 	        .boletos-row { display: grid; grid-template-columns: var(--boletos-cols, 1fr); }
 	        .boletos-row + .boletos-row { border-top: 1px dashed rgba(15, 23, 42, 0.10); margin-top: 6px; padding-top: 6px; }
-	        .boletos-cell { padding: 0 8px; }
+	        .boletos-cell { padding: 0.5rem; }
 	        .boletos-cell-venc { color: #6c757d; white-space: nowrap; }
 	        .boletos-cell-valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
 	        .boletos-total-label { color: #6c757d; font-weight: 600; }
