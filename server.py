@@ -42,6 +42,12 @@ REQUERER_LOOKUP_ENDPOINTS = [
     "/ura/chamados/list/",
     "/ura/ordemservico/list/",
 ]
+
+OC_LOOKUP_ENDPOINTS = [
+    "/ura/ordemservico/list/",
+    "/ura/chamado/list/",
+    "/ura/ocorrencia/list/",
+]
 SUSPENDED_STATUS_CODES = set()
 SUSPENDED_STATUS_TOKENS = ["SUSP"]
 try:
@@ -120,6 +126,12 @@ try:
             eps = req_cfg.get("lookup_endpoints")
             if isinstance(eps, list) and eps:
                 REQUERER_LOOKUP_ENDPOINTS = [str(x).strip() for x in eps if str(x).strip()]
+        except Exception:
+            pass
+        try:
+            eps = req_cfg.get("oc_lookup_endpoints")
+            if isinstance(eps, list) and eps:
+                OC_LOOKUP_ENDPOINTS = [str(x).strip() for x in eps if str(x).strip()]
         except Exception:
             pass
         codes = cfg.get('dashboard', {}).get('suspended_status_codes') or []
@@ -294,6 +306,56 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         ProxyHandler.ocorrencias_cache[key] = {"ts": now, "items": [], "attempts": attempts}
         return [], attempts
+
+    def _fetch_ocorrencia_por_id(self, oc_id, nocache=False, timeout=40):
+        oc_id = str(oc_id or "").strip()
+        if not oc_id:
+            return None, []
+        attempts = []
+
+        id_payloads = [
+            {"os_id": oc_id},
+            {"id": oc_id},
+            {"ocorrencia_id": oc_id},
+            {"chamado_id": oc_id},
+            {"os": oc_id},
+            {"os_id": int(oc_id)} if oc_id.isdigit() else {"os_id": oc_id},
+            {"id": int(oc_id)} if oc_id.isdigit() else {"id": oc_id},
+        ]
+
+        def matches(item):
+            if not isinstance(item, dict):
+                return False
+            for k in ("os_id", "id", "ocorrencia_id", "chamado_id", "osId"):
+                v = item.get(k)
+                if v is None:
+                    continue
+                if str(v).strip() == oc_id:
+                    return True
+            return False
+
+        endpoints = OC_LOOKUP_ENDPOINTS if isinstance(OC_LOOKUP_ENDPOINTS, list) and OC_LOOKUP_ENDPOINTS else REQUERER_LOOKUP_ENDPOINTS
+        for ep in endpoints:
+            ep = str(ep or "").strip()
+            if not ep:
+                continue
+            if not ep.startswith("/"):
+                ep = "/" + ep
+            for pld in id_payloads:
+                try:
+                    data = self._list_ura(ep, pld, timeout=timeout)
+                    lst = self._extract_list(data)
+                    if lst is None:
+                        # às vezes retorna 1 item dict
+                        if isinstance(data, dict) and matches(data):
+                            return data, attempts
+                        raise RuntimeError(f"URA {ep} resposta inesperada: {type(data).__name__}")
+                    for item in lst:
+                        if matches(item):
+                            return item, attempts
+                except Exception as e:
+                    attempts.append({"endpoint": ep, "payload_keys": sorted(list(pld.keys())), "error": f"{type(e).__name__}: {str(e)}"})
+        return None, attempts
 
     def _pick_ocorrencia_requerer(self, ocorrencias):
         if not isinstance(ocorrencias, list):
@@ -1173,6 +1235,61 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(200, payload)
             except Exception as e:
                 self._send_json(502, {"ok": False, "message": "Falha ao consultar ocorrências no SGP.", "details": {"message": f"{type(e).__name__}: {str(e)}"}})
+            return
+
+        if path_only.startswith("/api/ocorrencia-info"):
+            if self._is_protected_path("/api/ocorrencia-info"):
+                if not self._require_auth():
+                    return
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            oc_id = (params.get("id", [""])[0] or params.get("oc", [""])[0] or params.get("os", [""])[0] or "").strip()
+            debug = params.get('debug', ['0'])[0] in ('1', 'true', 'yes')
+            nocache = params.get('nocache', ['0'])[0] in ('1', 'true', 'yes')
+            if not oc_id:
+                self._send_json(400, {"ok": False, "message": "Parâmetro obrigatório ausente: id"})
+                return
+            try:
+                item, attempts = self._fetch_ocorrencia_por_id(oc_id, nocache=nocache, timeout=40)
+                if not item:
+                    payload = {"ok": True, "id": str(oc_id), "found": False}
+                    if debug:
+                        payload["debug"] = {"attempts": attempts}
+                    self._send_json(200, payload)
+                    return
+
+                actor = (
+                    item.get("responsavel")
+                    or item.get("responsável")
+                    or item.get("usuario")
+                    or item.get("usuario_abertura")
+                    or item.get("criado_por")
+                    or item.get("created_by")
+                    or item.get("autor")
+                )
+                if actor in (None, ""):
+                    actor = self._get_any_field_by_norm(item, ["aberta por", "abertapor", "aberta_por", "abertaPor", "usuario_abertura"])
+                if actor in (None, ""):
+                    actor = self._extract_aberta_por_from_text(item)
+                actor = self._stringify_actor(actor)
+
+                summary = {
+                    "id": item.get("os_id") or item.get("id") or item.get("ocorrencia_id") or item.get("chamado_id") or str(oc_id),
+                    "contrato": item.get("contrato") or item.get("contrato_id") or item.get("contratoId"),
+                    "conteudo": item.get("conteudo") or item.get("assunto") or item.get("titulo"),
+                    "tipo_id": item.get("ocorrenciatipo") or item.get("ocorrencia_tipo") or item.get("ocorrenciaTipo") or item.get("tipo") or item.get("tipo_id"),
+                    "tipo_label": item.get("ocorrenciatipo_descricao") or item.get("ocorrenciatipo_label") or item.get("tipo_label") or item.get("tipo_descricao"),
+                    "motivo_id": item.get("motivoos") or item.get("motivo_os") or item.get("motivo") or item.get("motivo_id"),
+                    "classificacao": item.get("classificacao") or item.get("classificação") or item.get("status") or item.get("situacao"),
+                    "aberta_por": actor,
+                    "keys_head": list(item.keys())[:40],
+                }
+                payload = {"ok": True, "id": str(oc_id), "found": True, "summary": summary}
+                if debug:
+                    payload["debug"] = {"attempts": attempts}
+                self._send_json(200, payload)
+            except Exception as e:
+                self._send_json(502, {"ok": False, "message": "Falha ao consultar ocorrência no SGP.", "details": {"message": f"{type(e).__name__}: {str(e)}"}})
             return
 
         if path_only.startswith('/api/buildinfo'):
