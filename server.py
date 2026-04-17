@@ -366,6 +366,51 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         candidates.sort(key=sort_key, reverse=True)
         return candidates[0]
 
+    def _norm_key(self, value):
+        s = str(value or "").strip().lower()
+        if not s:
+            return ""
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(ch for ch in s if not unicodedata.combining(ch))
+        # keep only alnum to make matching resilient: "Aberta Por:" -> "abertapor"
+        return "".join(ch for ch in s if ch.isalnum())
+
+    def _stringify_actor(self, value):
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            for k in ("nome", "usuario", "username", "login", "label", "descricao", "descrição"):
+                v = value.get(k)
+                if v not in (None, ""):
+                    return str(v).strip() or None
+            return None
+        if isinstance(value, (int, float)):
+            return str(value)
+        s = str(value).strip()
+        return s or None
+
+    def _get_any_field_by_norm(self, item, wanted_norm_keys):
+        if not isinstance(item, dict):
+            return None
+        wanted = {self._norm_key(k) for k in (wanted_norm_keys or []) if str(k or "").strip()}
+        if not wanted:
+            return None
+        for k, v in item.items():
+            if self._norm_key(k) in wanted and v not in (None, ""):
+                return v
+        return None
+
+    def _extract_aberta_por_from_text(self, item):
+        if not isinstance(item, dict):
+            return None
+        for v in item.values():
+            if not isinstance(v, str):
+                continue
+            m = re.search(r"\baberta\s+por\s*:\s*([^\n\r<]+)", v, re.IGNORECASE)
+            if m:
+                return m.group(1).strip()
+        return None
+
     def _post_suporte_contrato(self, contrato_id, timeout=40):
         url = f'{SGP_BASE}/suporte/contrato/list/'
         payload = {"contrato_id": int(contrato_id)}
@@ -1031,7 +1076,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 oc_id = None
                 if isinstance(oc, dict):
                     oc_id = oc.get("os_id") or oc.get("id") or oc.get("ocorrencia_id") or oc.get("chamado_id")
-                    responsavel = (
+                    raw_actor = (
                         oc.get("responsavel")
                         or oc.get("responsável")
                         or oc.get("usuario")
@@ -1040,6 +1085,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                         or oc.get("created_by")
                         or oc.get("autor")
                     )
+                    if raw_actor in (None, ""):
+                        raw_actor = self._get_any_field_by_norm(oc, [
+                            "aberta_por",
+                            "abertaPor",
+                            "aberta por",
+                            "aberta_por_nome",
+                            "aberta_por_usuario",
+                            "aberta_por_username",
+                            "usuario_abertura",
+                            "usuario_abertura_nome",
+                            "autor",
+                            "criado_por",
+                            "criado por",
+                        ])
+                    if raw_actor in (None, ""):
+                        raw_actor = self._extract_aberta_por_from_text(oc)
+                    responsavel = self._stringify_actor(raw_actor)
                 payload = {"ok": True, "contrato_id": str(contrato_id), "responsavel": str(responsavel or "").strip() or None, "ocorrencia_id": oc_id}
                 if debug:
                     payload["debug"] = {"attempts": attempts, "found": bool(oc), "sample_count": len(items), "sample_head": items[:2]}
