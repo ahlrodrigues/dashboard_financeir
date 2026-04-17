@@ -264,12 +264,13 @@
 	                                        <th>Dias atraso</th>
 	                                        <th>Vencimento</th>
 	                                        <th>Valor em aberto</th>
+	                                        <th>Usuário</th>
 	                                        <th>Detalhes</th>
 	                                    </tr>
 	                                </thead>
 	                                <tbody id="tabelaSuspensosBody">
 	                                    <tr>
-	                                        <td colspan="8" class="text-center text-muted py-4">
+	                                        <td colspan="9" class="text-center text-muted py-4">
 	                                            Selecione a aba e clique em “Atualizar”.
 	                                        </td>
 	                                    </tr>
@@ -1145,7 +1146,7 @@ if (!(contratoId in cachedContracts)) {
 
 	                if (statusEl) statusEl.textContent = 'Carregando...';
 	                if (suspTbody) {
-	                    suspTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Carregando dados...</td></tr>';
+	                    suspTbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Carregando dados...</td></tr>';
 	                }
 	                const fromLocal = await fetchSuspensosFromLocalApi(diasMin, suspensosAbortCtrl.signal);
 	                if (!fromLocal) {
@@ -1202,7 +1203,7 @@ if (!(contratoId in cachedContracts)) {
             }
 
             // Layout alinhado às colunas: vencimento embaixo de "Vencimento" e valor embaixo de "Valor em aberto".
-            // A tabela de Suspensos tem 8 colunas; aqui repetimos 8 <td> e preenchermos só as colunas 6 e 7.
+            // A tabela de Suspensos tem 9 colunas; aqui repetimos 9 células e preenchemos só as colunas 6 e 7.
             let total = 0;
             const rows = vencidos.map((b) => {
                 const venc = formatDateOnly(b?.vencimento);
@@ -1219,6 +1220,7 @@ if (!(contratoId in cachedContracts)) {
                         <div class="boletos-cell boletos-cell-venc">${escapeHtml(venc)}</div>
                         <div class="boletos-cell boletos-cell-valor">${escapeHtml(valorFmt)}</div>
                         <div class="boletos-cell"></div>
+                        <div class="boletos-cell"></div>
                     </div>
                 `;
             }).join('');
@@ -1231,6 +1233,7 @@ if (!(contratoId in cachedContracts)) {
                     <div class="boletos-cell"></div>
                     <div class="boletos-cell boletos-total-label">Total:</div>
                     <div class="boletos-cell boletos-cell-valor boletos-total-value">${escapeHtml(formatCurrency(total))}</div>
+                    <div class="boletos-cell"></div>
                     <div class="boletos-cell"></div>
                 </div>
             `;
@@ -1296,7 +1299,7 @@ if (!(contratoId in cachedContracts)) {
         function updateTableSuspensos(data) {
             const tbody = document.getElementById('tabelaSuspensosBody');
             if (!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Nenhum contrato suspenso com boletos vencidos no critério informado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Nenhum contrato suspenso com boletos vencidos no critério informado.</td></tr>';
 	                if (tableSuspensos) tableSuspensos.destroy();
 	                return;
 	            }
@@ -1335,6 +1338,7 @@ if (!(contratoId in cachedContracts)) {
                     <td>${item.dias_atraso ?? '-'}</td>
                     <td data-order="${escapeHtml(String(item.vencimento || ''))}">${formatDateOnly(item.vencimento || '-')}</td>
                     <td>${renderBoletosValor(item)}</td>
+                    <td class="muted small" data-user-name="">-</td>
                     <td>
                         ${item.cliente_id ? `<button class="btn btn-sm btn-outline-primary" onclick="verDetalhes(${item.cliente_id})">Financeiro</button>` : ''}
                         <button class="btn btn-sm btn-outline-secondary ms-1" onclick="verContrato('${item.contrato_id}')">Contrato</button>
