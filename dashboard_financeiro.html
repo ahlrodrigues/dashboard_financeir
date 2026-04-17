@@ -324,15 +324,25 @@
 
         function formatDate(dateStr) {
             if (!dateStr) return '-';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('pt-BR');
+            const s = String(dateStr).trim();
+            if (!s) return '-';
+
+            // Preferir conversões estáveis (evita timezone shifting em strings YYYY-MM-DD).
+            const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+            if (dmy) return `${dmy[1]}/${dmy[2]}/${dmy[3]}`;
+
+            const ymd = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (ymd) return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+
+            const d = parseDate(s);
+            if (!d) return '-';
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yyyy = String(d.getFullYear());
+            return `${dd}/${mm}/${yyyy}`;
         }
 
         function formatDateOnly(dateStr) {
-            if (!dateStr) return '-';
-            const s = String(dateStr).trim().slice(0, 10);
-            const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-            if (m) return `${m[3]}/${m[2]}/${m[1]}`;
             return formatDate(dateStr);
         }
 
@@ -748,7 +758,7 @@ if (!(contratoId in cachedContracts)) {
                     <td><strong>${item.contrato_id}</strong></td>
                     <td>${item.nome || '-'}</td>
                     <td>${formatCpfCnpj(item.cpfcnpj)}</td>
-                    <td>${formatDate(item.data_status)}</td>
+                    <td data-order="${escapeHtml(String(item.data_status || ''))}">${formatDate(item.data_status)}</td>
                     <td>${item.equipamentos.map(eq => `<span class="equipment-tag">${eq}</span>`).join('')}</td>
                     <td><code>${item.comodato_id}</code></td>
                     <td onclick="event.stopPropagation()">
@@ -1184,7 +1194,7 @@ if (!(contratoId in cachedContracts)) {
                     <td>${formatCpfCnpj(item.cpfcnpj || '')}</td>
                     <td>${item.status || '-'}</td>
                     <td>${item.dias_atraso ?? '-'}</td>
-                    <td>${item.vencimento || '-'}</td>
+                    <td data-order="${escapeHtml(String(item.vencimento || ''))}">${formatDateOnly(item.vencimento || '-')}</td>
                     <td>${renderBoletosValor(item)}</td>
                     <td>
                         ${item.cliente_id ? `<button class="btn btn-sm btn-outline-primary" onclick="verDetalhes(${item.cliente_id})">Financeiro</button>` : ''}
