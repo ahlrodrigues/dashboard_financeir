@@ -424,6 +424,48 @@
             }
         }
 
+        async function fetchRequererInfo(contratoId) {
+            const url = `/api/requerer-info?contrato=${encodeURIComponent(String(contratoId))}`;
+            const resp = await fetchWithTimeout(url, { cache: 'no-store' }, 45000);
+            const text = await resp.text();
+            if (!resp.ok) throw new Error(text.substring(0, 200));
+            const parsed = JSON.parse(text);
+            return parsed;
+        }
+
+        async function hydrateRequererUsuariosVisible() {
+            try {
+                const visibleRows = Array.from(document.querySelectorAll('#tabelaSuspensosBody tr[data-contrato-id]'));
+                for (const tr of visibleRows) {
+                    const contratoId = tr.getAttribute('data-contrato-id');
+                    if (!contratoId) continue;
+                    const td = tr.querySelector('td[data-user-name]');
+                    if (!td) continue;
+                    if (td.dataset.hydrated === '1') continue;
+                    td.dataset.hydrated = '1';
+                    // se já tem preenchido (localStorage) não precisa consultar
+                    const local = (loadRequererMap() || {})[String(contratoId)];
+                    if (local) {
+                        td.textContent = String(local);
+                        continue;
+                    }
+                    try {
+                        const info = await fetchRequererInfo(contratoId);
+                        if (info?.responsavel) {
+                            td.textContent = String(info.responsavel);
+                            const map = loadRequererMap();
+                            map[String(contratoId)] = String(info.responsavel);
+                            saveRequererMap(map);
+                        }
+                    } catch {
+                        // ignora: pode não existir OC ainda
+                    }
+                }
+            } catch {
+                // noop
+            }
+        }
+
         async function requererOcorrencia(contratoId) {
             const normalized = String(contratoId || '').trim();
             if (!normalized) return;
@@ -455,10 +497,20 @@
                     throw new Error(data?.message || 'Falha ao criar ocorrência.');
                 }
 
-                const map = loadRequererMap();
-                map[normalized] = username || 'OK';
-                saveRequererMap(map);
-                applyRequererMarksToSuspensosTable();
+                // Atualiza a coluna Usuário pela fonte de verdade (SGP).
+                try {
+                    const info = await fetchRequererInfo(normalized);
+                    const respName = String(info?.responsavel || '').trim();
+                    const map = loadRequererMap();
+                    map[normalized] = respName || (username || 'OK');
+                    saveRequererMap(map);
+                    applyRequererMarksToSuspensosTable();
+                } catch {
+                    const map = loadRequererMap();
+                    map[normalized] = username || 'OK';
+                    saveRequererMap(map);
+                    applyRequererMarksToSuspensosTable();
+                }
 
                 alert('Ocorrência criada com sucesso.');
             } catch (e) {
@@ -1439,6 +1491,9 @@ if (!(contratoId in cachedContracts)) {
             tableSuspensos = new DataTable('#tabelaSuspensos', {
                 pageLength: 25,
                 order: [[1, 'asc']],
+                drawCallback: function() {
+                    hydrateRequererUsuariosVisible();
+                },
                 language: {
                     "sEmptyTable": "Nenhum registro encontrado",
                     "sInfo": "Mostrando de _START_ ate _END_ de _TOTAL_ registros",
@@ -1458,6 +1513,7 @@ if (!(contratoId in cachedContracts)) {
             });
             bindSuspensosRowToggle();
             applyRequererMarksToSuspensosTable();
+            hydrateRequererUsuariosVisible();
         }
 
         function verDetalhes(clienteId) {

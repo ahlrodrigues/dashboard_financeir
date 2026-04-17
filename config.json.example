@@ -31,6 +31,11 @@
     "setor": 1,
     "os_prioridade": 2,
     "classificacao_field": "classificacao",
-    "classificacao_value": "suspenso"
+    "classificacao_value": "suspenso",
+    "lookup_endpoints": [
+      "/ura/ocorrencia/list/",
+      "/ura/chamado/list/",
+      "/ura/ordemservico/list/"
+    ]
   }
 }

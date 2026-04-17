@@ -35,6 +35,13 @@ REQUERER_PRIORIDADE = 2
 # Campo/valor opcionais para "classificação" (algumas instâncias do SGP exigem/aceitam chaves diferentes).
 REQUERER_CLASSIFICACAO_FIELD = "classificacao"
 REQUERER_CLASSIFICACAO_VALUE = "suspenso"
+REQUERER_LOOKUP_ENDPOINTS = [
+    "/ura/ocorrencia/list/",
+    "/ura/ocorrencias/list/",
+    "/ura/chamado/list/",
+    "/ura/chamados/list/",
+    "/ura/ordemservico/list/",
+]
 SUSPENDED_STATUS_CODES = set()
 SUSPENDED_STATUS_TOKENS = ["SUSP"]
 try:
@@ -107,6 +114,12 @@ try:
             pass
         try:
             REQUERER_CLASSIFICACAO_VALUE = str(req_cfg.get('classificacao_value') or REQUERER_CLASSIFICACAO_VALUE).strip()
+        except Exception:
+            pass
+        try:
+            eps = req_cfg.get("lookup_endpoints")
+            if isinstance(eps, list) and eps:
+                REQUERER_LOOKUP_ENDPOINTS = [str(x).strip() for x in eps if str(x).strip()]
         except Exception:
             pass
         codes = cfg.get('dashboard', {}).get('suspended_status_codes') or []
@@ -188,6 +201,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     RESULTS_TTL_SECONDS = 300
     titulos_cache = {}
     TITULOS_TTL_SECONDS = 300
+    ocorrencias_cache = {}
+    OCORRENCIAS_TTL_SECONDS = 120
     def _post_sgp(self, path, payload, timeout=60):
         url = f'{SGP_BASE}{path}'
         # Tenta JSON primeiro (padrão moderno), depois form-encoded (alguns endpoints do SGP aceitam melhor)
@@ -217,6 +232,118 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             # fallback: x-www-form-urlencoded
             resp = requests.post(url, data=base, headers=headers, timeout=timeout, allow_redirects=False)
             return resp, "urlencoded"
+
+    def _list_ura(self, path, payload, timeout=40):
+        resp, _mode = self._post_ura(path, payload, timeout=timeout)
+        ct = (resp.headers.get("Content-Type") or "").lower()
+        try:
+            data = resp.json()
+        except Exception:
+            raise RuntimeError(f"URA {path} resposta não JSON (HTTP {resp.status_code}): {(resp.text or '')[:200]}")
+        if resp.status_code != 200:
+            msg = None
+            if isinstance(data, dict):
+                msg = data.get("message") or data.get("msg") or data.get("detail")
+            raise RuntimeError(f"URA {path} HTTP {resp.status_code}: {msg or str(data)[:200]}")
+        return data
+
+    def _extract_list(self, data):
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for key in ("items", "data", "results", "list", "rows"):
+                v = data.get(key)
+                if isinstance(v, list):
+                    return v
+        return None
+
+    def _fetch_ocorrencias_contrato(self, contrato_id, nocache=False, timeout=40):
+        contrato_id = str(contrato_id or "").strip()
+        if not contrato_id:
+            return [], []
+        key = f"{contrato_id}"
+        now = time.time()
+        if not nocache:
+            cached = ProxyHandler.ocorrencias_cache.get(key)
+            if cached and (now - cached.get("ts", 0) < ProxyHandler.OCORRENCIAS_TTL_SECONDS):
+                return cached.get("items") or [], cached.get("attempts") or []
+
+        attempts = []
+        payloads = [
+            {"contrato": contrato_id},
+            {"contrato_id": contrato_id},
+            {"contrato": int(contrato_id)} if contrato_id.isdigit() else {"contrato": contrato_id},
+        ]
+
+        for ep in REQUERER_LOOKUP_ENDPOINTS:
+            ep = str(ep or "").strip()
+            if not ep:
+                continue
+            if not ep.startswith("/"):
+                ep = "/" + ep
+            for pld in payloads:
+                try:
+                    data = self._list_ura(ep, pld, timeout=timeout)
+                    lst = self._extract_list(data)
+                    if lst is None:
+                        raise RuntimeError(f"URA {ep} resposta inesperada: {type(data).__name__}")
+                    ProxyHandler.ocorrencias_cache[key] = {"ts": now, "items": lst, "attempts": attempts}
+                    return lst, attempts
+                except Exception as e:
+                    attempts.append({"endpoint": ep, "payload_keys": sorted(list(pld.keys())), "error": f"{type(e).__name__}: {str(e)}"})
+
+        ProxyHandler.ocorrencias_cache[key] = {"ts": now, "items": [], "attempts": attempts}
+        return [], attempts
+
+    def _pick_ocorrencia_requerer(self, ocorrencias):
+        if not isinstance(ocorrencias, list):
+            return None
+        wanted_tipo = int(REQUERER_OCORRENCIA_TIPO)
+        wanted_motivo = int(REQUERER_MOTIVO_OS)
+        wanted_class = str(REQUERER_CLASSIFICACAO_VALUE or "").strip().lower()
+        wanted_conteudo = str(REQUERER_CONTEUDO or "").strip().lower()
+
+        def to_int(x):
+            try:
+                return int(x)
+            except Exception:
+                return None
+
+        candidates = []
+        for oc in ocorrencias:
+            if not isinstance(oc, dict):
+                continue
+            tipo = to_int(oc.get("ocorrenciatipo") or oc.get("ocorrencia_tipo") or oc.get("ocorrenciaTipo") or oc.get("tipo") or oc.get("tipo_id"))
+            motivo = to_int(oc.get("motivoos") or oc.get("motivo_os") or oc.get("motivo") or oc.get("motivo_id"))
+            conteudo = str(oc.get("conteudo") or oc.get("assunto") or oc.get("titulo") or "").strip().lower()
+            classificacao = str(oc.get("classificacao") or oc.get("classificação") or oc.get("status") or oc.get("situacao") or "").strip().lower()
+
+            if tipo is not None and tipo != wanted_tipo:
+                continue
+            if motivo is not None and motivo != wanted_motivo:
+                continue
+            if wanted_conteudo and conteudo and wanted_conteudo not in conteudo:
+                # não elimina quando conteudo vazio, só quando existe e não bate
+                continue
+            if wanted_class and classificacao and wanted_class not in classificacao:
+                continue
+
+            candidates.append(oc)
+
+        if not candidates:
+            return None
+
+        def sort_key(oc):
+            # tenta ordenar por data de criação/atualização (ISO-like)
+            for k in ("data", "data_cadastro", "data_abertura", "criado_em", "created_at", "createdAt"):
+                v = oc.get(k)
+                d = self._parse_date(v) if v else None
+                if d:
+                    return d.toordinal()
+            return 0
+
+        candidates.sort(key=sort_key, reverse=True)
+        return candidates[0]
 
     def _post_suporte_contrato(self, contrato_id, timeout=40):
         url = f'{SGP_BASE}/suporte/contrato/list/'
@@ -862,6 +989,42 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if not auth:
                 return
             self._send_json(200, {"ok": True, "user": {"username": auth.get("sub"), "nome": auth.get("nome"), "email": auth.get("email"), "isAdmin": bool(auth.get("isAdmin"))}})
+            return
+
+        if path_only.startswith("/api/requerer-info"):
+            if self._is_protected_path(path_only):
+                if not self._require_auth():
+                    return
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            contrato_id = (params.get("contrato", [""])[0] or "").strip()
+            debug = params.get('debug', ['0'])[0] in ('1', 'true', 'yes')
+            nocache = params.get('nocache', ['0'])[0] in ('1', 'true', 'yes')
+            if not contrato_id:
+                self._send_json(400, {"ok": False, "message": "Parâmetro obrigatório ausente: contrato"})
+                return
+            try:
+                items, attempts = self._fetch_ocorrencias_contrato(contrato_id, nocache=nocache, timeout=40)
+                oc = self._pick_ocorrencia_requerer(items)
+                responsavel = None
+                oc_id = None
+                if isinstance(oc, dict):
+                    oc_id = oc.get("os_id") or oc.get("id") or oc.get("ocorrencia_id") or oc.get("chamado_id")
+                    responsavel = (
+                        oc.get("responsavel")
+                        or oc.get("responsável")
+                        or oc.get("usuario")
+                        or oc.get("usuario_abertura")
+                        or oc.get("criado_por")
+                        or oc.get("created_by")
+                        or oc.get("autor")
+                    )
+                payload = {"ok": True, "contrato_id": str(contrato_id), "responsavel": str(responsavel or "").strip() or None, "ocorrencia_id": oc_id}
+                if debug:
+                    payload["debug"] = {"attempts": attempts, "found": bool(oc), "sample_count": len(items), "sample_head": items[:2]}
+                self._send_json(200, payload)
+            except Exception as e:
+                self._send_json(502, {"ok": False, "message": "Falha ao consultar ocorrências no SGP.", "details": {"message": f"{type(e).__name__}: {str(e)}"}})
             return
 
         if path_only.startswith('/api/buildinfo'):
