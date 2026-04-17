@@ -608,11 +608,29 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return self._parse_date(paid_date) is not None
 
     def _titulo_vencimento_date(self, titulo):
-        v = self._pick_first(titulo, ["data_vencimento", "dt_vencimento", "vencimento", "titulo_vencimento", "boleto_vencimento"])
+        v = self._pick_first(titulo, [
+            "data_vencimento",
+            "dt_vencimento",
+            "dataVencimento",
+            "dtVencimento",
+            "dataVenc",
+            "vencimento",
+            "titulo_vencimento",
+            "boleto_vencimento",
+        ])
         return self._parse_date(v)
 
     def _titulo_valor(self, titulo):
-        v = self._pick_first(titulo, ["valor_em_aberto", "valor_aberto", "valor_vencido", "valor", "valor_titulo", "valor_original", "valor_total"])
+        v = self._pick_first(titulo, [
+            "valor_em_aberto",
+            "valor_aberto",
+            "valor_vencido",
+            "valorCorrigido",
+            "valor",
+            "valor_titulo",
+            "valor_original",
+            "valor_total",
+        ])
         return self._extract_number(v)
 
     def _diagnose_sgp(self):
